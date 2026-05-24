@@ -1,16 +1,9 @@
-const articleView = document.getElementById("article-view");
 const statusEl = document.getElementById("status");
-const headlineEl = document.getElementById("headline");
-const summaryEl = document.getElementById("summary");
-const metaEl = document.getElementById("meta");
-const headerTimeEl = document.getElementById("header-time");
-const progressBar = document.getElementById("progress-bar");
+const articleCountEl = document.getElementById("article-count");
+const newsListEl = document.getElementById("news-list");
 const refreshBtn = document.getElementById("refresh-btn");
 
 let articles = [];
-let currentIndex = 0;
-let rotateSeconds = 8;
-let rotateTimer = null;
 let lastFetchedAt = null;
 let statusTimer = null;
 
@@ -60,71 +53,68 @@ function updateStatusLine() {
   statusEl.textContent = updated ? `أخبار الأسبوع · ${updated}` : "أخبار الأسبوع";
 }
 
-function applyPayload(payload) {
-  if (!payload?.articles?.length) {
-    statusEl.textContent = "لا توجد أخبار — اضغط ↻";
-    return;
-  }
-  articles = payload.articles;
-  lastFetchedAt = payload.fetchedAt || null;
-  currentIndex = 0;
-  renderArticle(currentIndex);
-  startRotation();
-  updateStatusLine();
+function escapeHtml(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
-function renderArticle(index) {
-  const article = articles[index];
-  if (!article) {
-    statusEl.textContent = "No news available";
-    headlineEl.textContent = "";
-    summaryEl.textContent = "";
-    metaEl.innerHTML = "";
-    headerTimeEl.textContent = "—";
+function renderNewsList() {
+  if (!articles.length) {
+    articleCountEl.textContent = "";
+    newsListEl.innerHTML = `
+      <div class="empty-state">
+        <strong>لا توجد أخبار</strong>
+        تحقق من اتصال الإنترنت واضغط ↻ للتحديث
+      </div>`;
     return;
   }
 
-  updateStatusLine();
-  headlineEl.textContent = article.translatedTitle || article.title;
-  summaryEl.textContent = article.summary || "";
-  headerTimeEl.textContent = formatTime(article.pubDate) || "—";
-  metaEl.innerHTML = `
-    <span class="topic">${article.topic || "عام"}</span>
-    <span class="source">${article.sourceLabel || ""}</span>
-    <span class="counter">${index + 1}/${articles.length}</span>
-  `;
-}
+  articleCountEl.textContent = `${articles.length} خبر`;
+  newsListEl.innerHTML = articles
+    .map(
+      (article, index) => `
+    <article class="news-card" data-index="${index}" tabindex="0">
+      <div class="news-card-head">
+        <h2 class="news-card-title">${escapeHtml(article.translatedTitle || article.title)}</h2>
+        <span class="news-card-time">${escapeHtml(formatTime(article.pubDate) || "—")}</span>
+      </div>
+      ${article.summary ? `<p class="news-card-summary">${escapeHtml(article.summary)}</p>` : ""}
+      <div class="news-card-meta">
+        <span class="topic">${escapeHtml(article.topic || "عام")}</span>
+        <span class="source">${escapeHtml(article.sourceLabel || "")}</span>
+      </div>
+    </article>`,
+    )
+    .join("");
 
-function resetProgress() {
-  progressBar.style.transition = "none";
-  progressBar.style.width = "0%";
-  requestAnimationFrame(() => {
-    progressBar.style.transition = `width ${rotateSeconds}s linear`;
-    progressBar.style.width = "100%";
+  newsListEl.querySelectorAll(".news-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      const article = articles[Number(card.dataset.index)];
+      if (article?.link) window.tnewsWidget.openLink(article.link);
+    });
   });
 }
 
-function showNext() {
-  if (!articles.length) return;
+function applyPayload(payload) {
+  if (!payload?.articles?.length) {
+    articles = [];
+    statusEl.textContent = "لا توجد أخبار — اضغط ↻";
+    renderNewsList();
+    return;
+  }
 
-  articleView.classList.add("fade-out");
-  setTimeout(() => {
-    currentIndex = (currentIndex + 1) % articles.length;
-    renderArticle(currentIndex);
-    articleView.classList.remove("fade-out");
-    resetProgress();
-  }, 280);
-}
-
-function startRotation() {
-  clearInterval(rotateTimer);
-  if (!articles.length) return;
-  resetProgress();
-  rotateTimer = setInterval(showNext, rotateSeconds * 1000);
+  articles = payload.articles;
+  lastFetchedAt = payload.fetchedAt || null;
+  updateStatusLine();
+  renderNewsList();
 }
 
 async function loadNews() {
   statusEl.textContent = "جاري التحديث…";
+  articleCountEl.textContent = "";
   try {
     if (!window.tnewsWidget) {
       statusEl.textContent = "خطأ في التطبيق — أعد التثبيت";
@@ -134,19 +124,16 @@ async function loadNews() {
     if (payload?.articles?.length) {
       applyPayload(payload);
     } else {
+      articles = [];
       const detail = payload?.loadedFeeds != null ? ` (${payload.loadedFeeds} مصادر)` : "";
       statusEl.textContent = `لا توجد أخبار — تحقق من الإنترنت واضغط ↻${detail}`;
+      renderNewsList();
     }
   } catch (err) {
     statusEl.textContent = "فشل التحديث — اضغط ↻";
     console.error("loadNews failed", err);
   }
 }
-
-articleView.addEventListener("click", () => {
-  const article = articles[currentIndex];
-  if (article?.link) window.tnewsWidget.openLink(article.link);
-});
 
 refreshBtn.addEventListener("click", (event) => {
   event.stopPropagation();
@@ -162,8 +149,6 @@ refreshBtn.addEventListener("click", (event) => {
     window.tnewsWidget.onNewsUpdated((payload) => {
       applyPayload(payload);
     });
-    const config = await window.tnewsWidget.getConfig();
-    rotateSeconds = config.rotateSeconds || 8;
     statusTimer = setInterval(updateStatusLine, 30000);
     await loadNews();
   } catch (err) {

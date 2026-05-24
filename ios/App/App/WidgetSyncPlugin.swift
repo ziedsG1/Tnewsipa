@@ -11,15 +11,18 @@ public class WidgetSyncPlugin: CAPPlugin, CAPBridgedPlugin {
     ]
 
     @objc func saveNews(_ call: CAPPluginCall) {
-        guard let payload = call.getObject("payload") else {
+        if let jsonString = call.getString("payloadJson"), !jsonString.isEmpty {
+            WidgetDataStore.save(jsonString: jsonString)
+        } else if let payload = call.getObject("payload") {
+            WidgetDataStore.save(payload)
+        } else {
             call.reject("Missing payload")
             return
         }
 
-        WidgetDataStore.save(payload)
         if #available(iOS 14.0, *) {
             WidgetCenter.shared.reloadAllTimelines()
         }
-        call.resolve()
+        call.resolve(["saved": true])
     }
 }

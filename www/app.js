@@ -28,7 +28,22 @@
     if (!window.Capacitor?.isNativePlatform?.() || !payload?.articles?.length) return;
     const plugin = window.Capacitor.Plugins.WidgetSync;
     if (!plugin?.saveNews) return;
-    plugin.saveNews({ payload }).catch(() => {});
+
+    const slim = {
+      fetchedAt: payload.fetchedAt || new Date().toISOString(),
+      articles: payload.articles.map((a) => ({
+        title: a.title || "",
+        link: a.link || "",
+        sourceLabel: a.sourceLabel || "",
+        pubDate: a.pubDate || null,
+        summary: a.summary || "",
+        topic: a.topic || "عام",
+      })),
+    };
+
+    plugin
+      .saveNews({ payloadJson: JSON.stringify(slim) })
+      .catch(() => plugin.saveNews({ payload: slim }).catch(() => {}));
   }
 
   function isWithinDays(pubDate, days) {
