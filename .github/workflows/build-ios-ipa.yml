@@ -43,8 +43,13 @@ jobs:
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO
 
+          APP_PATH="$RUNNER_TEMP/TnewsWidget.xcarchive/Products/Applications/App.app"
+          echo "App bundle contents:"
+          ls -la "$APP_PATH"
+          ls -la "$APP_PATH/PlugIns" 2>/dev/null || echo "No PlugIns folder"
+
           mkdir -p "$RUNNER_TEMP/Payload"
-          cp -R "$RUNNER_TEMP/TnewsWidget.xcarchive/Products/Applications/App.app" "$RUNNER_TEMP/Payload/"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
           cd "$RUNNER_TEMP"
           zip -qr TnewsWidget-unsigned.ipa Payload
           ls -lh TnewsWidget-unsigned.ipa

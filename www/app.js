@@ -21,6 +21,14 @@
     } catch {
       /* ignore quota errors */
     }
+    syncWidget(payload);
+  }
+
+  function syncWidget(payload) {
+    if (!window.Capacitor?.isNativePlatform?.() || !payload?.articles?.length) return;
+    const plugin = window.Capacitor.Plugins.WidgetSync;
+    if (!plugin?.saveNews) return;
+    plugin.saveNews({ payload }).catch(() => {});
   }
 
   function isWithinDays(pubDate, days) {
@@ -62,6 +70,7 @@
 
     if (!payload?.articles?.length) {
       payload = readCache();
+      if (payload?.articles?.length) syncWidget(payload);
     }
 
     if (payload?.articles?.length) {
