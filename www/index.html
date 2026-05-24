@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <title>Tnews Widget</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="widget" id="widget">
+      <header class="widget-header" id="drag-handle">
+        <div class="brand">
+          <svg class="brand-icon" viewBox="0 0 40 40" fill="none" aria-hidden="true">
+            <defs>
+              <linearGradient id="brandOrb" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#34d399" />
+                <stop offset="55%" stop-color="#0ea5e9" />
+                <stop offset="100%" stop-color="#a855f7" />
+              </linearGradient>
+            </defs>
+            <rect x="1" y="1" width="38" height="38" rx="11" fill="rgba(15,23,42,0.85)" stroke="url(#brandOrb)" stroke-width="1.25" />
+            <path d="M11 12h18v3h-6.5v14h-4V15H11v-3z" fill="url(#brandOrb)" />
+          </svg>
+          <span class="brand-name">Tnews</span>
+          <span class="version">v1.5.1</span>
+        </div>
+        <div class="header-center">
+          <span class="header-time" id="header-time">—</span>
+        </div>
+        <div class="header-actions">
+          <button type="button" class="icon-btn" id="refresh-btn" title="Refresh">↻</button>
+        </div>
+      </header>
+
+      <main class="widget-body">
+        <div class="article-view" id="article-view">
+          <p class="status" id="status">جاري التحميل…</p>
+          <h1 class="headline" id="headline"></h1>
+          <p class="summary" id="summary"></p>
+          <div class="meta" id="meta"></div>
+        </div>
+        <div class="progress"><div class="progress-bar" id="progress-bar"></div></div>
+      </main>
+    </div>
+    <script type="module" src="app.js"></script>
+    <script type="module" src="widget.js"></script>
+  </body>
+</html>

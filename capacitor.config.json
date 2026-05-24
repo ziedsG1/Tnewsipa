@@ -1,0 +1,20 @@
+{
+  "appId": "tn.tnews.widget",
+  "appName": "Tnews Widget",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "automatic",
+    "backgroundColor": "#080c16"
+  },
+  "plugins": {
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#080c16",
+      "showSpinner": false
+    },
+    "StatusBar": {
+      "style": "DARK",
+      "backgroundColor": "#080c16"
+    }
+  }
+}
