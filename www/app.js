@@ -155,29 +155,20 @@
 
     syncToHomeScreenWidget: async () => {
       const payload = readCache();
-      if (payload?.articles?.length) {
-        syncWidget(payload);
-      }
-      if (window.Capacitor?.isNativePlatform?.()) {
-        const install = window.Capacitor.Plugins.WidgetInstall;
-        if (install?.getWidgetStatus) {
-          return install.getWidgetStatus();
-        }
-      }
-      return { installed: false, count: 0 };
+      if (payload?.articles?.length) syncWidget(payload);
     },
 
-    showAddWidgetGuide: async () => {
-      const payload = readCache();
-      if (payload?.articles?.length) syncWidget(payload);
-
+    share: async ({ title, text, url }) => {
       if (window.Capacitor?.isNativePlatform?.()) {
-        const install = window.Capacitor.Plugins.WidgetInstall;
-        if (install?.showAddWidgetGuide) {
-          return install.showAddWidgetGuide();
+        const sharePlugin = window.Capacitor.Plugins.Share;
+        if (sharePlugin?.share) {
+          return sharePlugin.share({ title, text, url, dialogTitle: "مشاركة" });
         }
       }
-      return { shown: false };
+      if (navigator.share) {
+        return navigator.share({ title, text, url });
+      }
+      throw new Error("Share unavailable");
     },
   };
 
