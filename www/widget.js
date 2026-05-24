@@ -126,14 +126,20 @@ function startRotation() {
 async function loadNews() {
   statusEl.textContent = "جاري التحديث…";
   try {
+    if (!window.tnewsWidget) {
+      statusEl.textContent = "خطأ في التطبيق — أعد التثبيت";
+      return;
+    }
     const payload = await window.tnewsWidget.loadNews();
     if (payload?.articles?.length) {
       applyPayload(payload);
     } else {
-      statusEl.textContent = "لا توجد أخبار — تحقق من الإنترنت واضغط ↻";
+      const detail = payload?.loadedFeeds != null ? ` (${payload.loadedFeeds} مصادر)` : "";
+      statusEl.textContent = `لا توجد أخبار — تحقق من الإنترنت واضغط ↻${detail}`;
     }
-  } catch {
+  } catch (err) {
     statusEl.textContent = "فشل التحديث — اضغط ↻";
+    console.error("loadNews failed", err);
   }
 }
 
@@ -147,13 +153,21 @@ refreshBtn.addEventListener("click", (event) => {
   loadNews();
 });
 
-window.tnewsWidget.onNewsUpdated((payload) => {
-  applyPayload(payload);
-});
-
 (async function init() {
-  const config = await window.tnewsWidget.getConfig();
-  rotateSeconds = config.rotateSeconds || 8;
-  statusTimer = setInterval(updateStatusLine, 30000);
-  await loadNews();
+  try {
+    if (!window.tnewsWidget) {
+      statusEl.textContent = "خطأ في التحميل — أعد فتح التطبيق";
+      return;
+    }
+    window.tnewsWidget.onNewsUpdated((payload) => {
+      applyPayload(payload);
+    });
+    const config = await window.tnewsWidget.getConfig();
+    rotateSeconds = config.rotateSeconds || 8;
+    statusTimer = setInterval(updateStatusLine, 30000);
+    await loadNews();
+  } catch (err) {
+    statusEl.textContent = "فشل بدء التطبيق — اضغط ↻";
+    console.error("init failed", err);
+  }
 })();
