@@ -18,6 +18,8 @@
 		WGT0A0011FED79650016851F /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0000FED79650016851F /* WidgetDataStore.swift */; };
 		WGT0A0021FED79650016851F /* WidgetSyncPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0020FED79650016851F /* WidgetSyncPlugin.swift */; };
 		WGT0A0031FED79650016851F /* WidgetSyncPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0030FED79650016851F /* WidgetSyncPlugin.m */; };
+		WGT0A0201FED79650016851F /* WidgetInstallPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0200FED79650016851F /* WidgetInstallPlugin.swift */; };
+		WGT0A0211FED79650016851F /* WidgetInstallPlugin.m in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0210FED79650016851F /* WidgetInstallPlugin.m */; };
 		WGT0A0041FED79650016851F /* TnewsWidgetBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0040FED79650016851F /* TnewsWidgetBundle.swift */; };
 		WGT0A0051FED79650016851F /* WidgetDataStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = WGT0A0000FED79650016851F /* WidgetDataStore.swift */; };
 		WGT0A0061FED79650016851F /* TnewsWidgetExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = WGT0A0070FED79650016851F /* TnewsWidgetExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -39,6 +41,8 @@
 		WGT0A0000FED79650016851F /* WidgetDataStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetDataStore.swift; sourceTree = "<group>"; };
 		WGT0A0020FED79650016851F /* WidgetSyncPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetSyncPlugin.swift; sourceTree = "<group>"; };
 		WGT0A0030FED79650016851F /* WidgetSyncPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WidgetSyncPlugin.m; sourceTree = "<group>"; };
+		WGT0A0200FED79650016851F /* WidgetInstallPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WidgetInstallPlugin.swift; sourceTree = "<group>"; };
+		WGT0A0210FED79650016851F /* WidgetInstallPlugin.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = WidgetInstallPlugin.m; sourceTree = "<group>"; };
 		WGT0A0040FED79650016851F /* TnewsWidgetBundle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TnewsWidgetBundle.swift; sourceTree = "<group>"; };
 		WGT0A0070FED79650016851F /* TnewsWidgetExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TnewsWidgetExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		WGT0A0080FED79650016851F /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -115,6 +119,8 @@
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				WGT0A0020FED79650016851F /* WidgetSyncPlugin.swift */,
 				WGT0A0030FED79650016851F /* WidgetSyncPlugin.m */,
+				WGT0A0200FED79650016851F /* WidgetInstallPlugin.swift */,
+				WGT0A0210FED79650016851F /* WidgetInstallPlugin.m */,
 				WGT0A00A0FED79650016851F /* App.entitlements */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -313,6 +319,8 @@
 				WGT0A0011FED79650016851F /* WidgetDataStore.swift in Sources */,
 				WGT0A0021FED79650016851F /* WidgetSyncPlugin.swift in Sources */,
 				WGT0A0031FED79650016851F /* WidgetSyncPlugin.m in Sources */,
+				WGT0A0201FED79650016851F /* WidgetInstallPlugin.swift in Sources */,
+				WGT0A0211FED79650016851F /* WidgetInstallPlugin.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -473,7 +481,7 @@
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.7.0;
 				OTHER_SWIFT_FLAGS = "$(inherited) \"-D\" \"COCOAPODS\" \"-DDEBUG\"";
 				PRODUCT_BUNDLE_IDENTIFIER = tn.tnews.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
@@ -494,7 +502,7 @@
 				INFOPLIST_FILE = App/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks";
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tn.tnews.widget;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
@@ -512,7 +520,7 @@
 				INFOPLIST_FILE = TnewsWidgetExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tn.tnews.widget.TnewsWidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -530,7 +538,7 @@
 				INFOPLIST_FILE = TnewsWidgetExtension/Info.plist;
 				IPHONEOS_DEPLOYMENT_TARGET = 14.0;
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/Frameworks @executable_path/../../Frameworks";
-				MARKETING_VERSION = 1.6.0;
+				MARKETING_VERSION = 1.7.0;
 				PRODUCT_BUNDLE_IDENTIFIER = tn.tnews.widget.TnewsWidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;

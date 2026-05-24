@@ -2,6 +2,7 @@ const statusEl = document.getElementById("status");
 const articleCountEl = document.getElementById("article-count");
 const newsListEl = document.getElementById("news-list");
 const refreshBtn = document.getElementById("refresh-btn");
+const addWidgetBtn = document.getElementById("add-widget-btn");
 
 let articles = [];
 let lastFetchedAt = null;
@@ -110,6 +111,9 @@ function applyPayload(payload) {
   lastFetchedAt = payload.fetchedAt || null;
   updateStatusLine();
   renderNewsList();
+  if (window.tnewsWidget?.syncToHomeScreenWidget) {
+    window.tnewsWidget.syncToHomeScreenWidget();
+  }
 }
 
 async function loadNews() {
@@ -139,6 +143,35 @@ refreshBtn.addEventListener("click", (event) => {
   event.stopPropagation();
   loadNews();
 });
+
+addWidgetBtn.addEventListener("click", async (event) => {
+  event.stopPropagation();
+  try {
+    if (articles.length && window.tnewsWidget?.syncToHomeScreenWidget) {
+      await window.tnewsWidget.syncToHomeScreenWidget();
+    }
+    if (window.tnewsWidget?.showAddWidgetGuide) {
+      const result = await window.tnewsWidget.showAddWidgetGuide();
+      if (!result?.shown) showWebWidgetGuide();
+    } else {
+      showWebWidgetGuide();
+    }
+  } catch (err) {
+    console.error("add widget failed", err);
+    showWebWidgetGuide();
+  }
+});
+
+function showWebWidgetGuide() {
+  alert(
+    "إضافة ويدجت Tnews على الشاشة الرئيسية:\n\n" +
+      "1. اخرج إلى الشاشة الرئيسية\n" +
+      "2. اضغط مطولاً على الخلفية\n" +
+      "3. اضغط +\n" +
+      "4. ابحث عن Tnews\n" +
+      "5. اختر الحجم ثم أضف",
+  );
+}
 
 (async function init() {
   try {

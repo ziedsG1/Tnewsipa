@@ -152,6 +152,33 @@
       updateListeners.add(callback);
       return () => updateListeners.delete(callback);
     },
+
+    syncToHomeScreenWidget: async () => {
+      const payload = readCache();
+      if (payload?.articles?.length) {
+        syncWidget(payload);
+      }
+      if (window.Capacitor?.isNativePlatform?.()) {
+        const install = window.Capacitor.Plugins.WidgetInstall;
+        if (install?.getWidgetStatus) {
+          return install.getWidgetStatus();
+        }
+      }
+      return { installed: false, count: 0 };
+    },
+
+    showAddWidgetGuide: async () => {
+      const payload = readCache();
+      if (payload?.articles?.length) syncWidget(payload);
+
+      if (window.Capacitor?.isNativePlatform?.()) {
+        const install = window.Capacitor.Plugins.WidgetInstall;
+        if (install?.showAddWidgetGuide) {
+          return install.showAddWidgetGuide();
+        }
+      }
+      return { shown: false };
+    },
   };
 
   scheduleRefresh();
