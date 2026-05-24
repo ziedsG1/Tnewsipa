@@ -8,10 +8,12 @@ const weatherTextEl = document.getElementById("weather-text");
 const weatherIconEl = document.querySelector(".weather-icon");
 
 const THEME_KEY = "tnews-theme";
+const DOUBLE_TAP_MS = 450;
 
 let articles = [];
 let lastFetchedAt = null;
 let statusTimer = null;
+const lastTapByCard = new Map();
 
 function formatTime(pubDate) {
   if (!pubDate) return "";
@@ -67,6 +69,13 @@ function escapeHtml(text) {
     .replace(/"/g, "&quot;");
 }
 
+function displaySource(article) {
+  if (window.TnewsShareCard?.sourceLabel) {
+    return window.TnewsShareCard.sourceLabel(article);
+  }
+  return article.sourceLabel || "";
+}
+
 function weatherEmoji(label) {
   if (!label) return "☁";
   if (/صاف|Clear/i.test(label)) return "☀";
@@ -107,38 +116,28 @@ function toggleTheme() {
   applyTheme(current === "dark" ? "light" : "dark");
 }
 
-async function shareContent({ title, text, url }) {
-  const shareText = text || title || "Tnews";
-  const shareUrl = url || "";
-
-  if (window.Capacitor?.isNativePlatform?.()) {
-    const sharePlugin = window.Capacitor.Plugins.Share;
-    if (sharePlugin?.share) {
-      await sharePlugin.share({
-        title: title || "Tnews",
-        text: shareText,
-        url: shareUrl,
-        dialogTitle: "مشاركة",
-      });
-      return;
-    }
+async function shareArticleAsStory(article) {
+  if (!article) return;
+  statusEl.textContent = "جاري تجهيز صورة المشاركة…";
+  try {
+    await window.TnewsShareCard.shareArticleImage(article);
+  } finally {
+    updateStatusLine();
   }
+}
 
-  if (navigator.share) {
-    await navigator.share({
-      title: title || "Tnews",
-      text: shareText,
-      url: shareUrl || undefined,
-    });
+function handleCardTap(card, article) {
+  const key = card.dataset.index;
+  const now = Date.now();
+  const prev = lastTapByCard.get(key) || 0;
+
+  if (now - prev <= DOUBLE_TAP_MS) {
+    lastTapByCard.set(key, 0);
+    if (article?.link) window.tnewsWidget.openLink(article.link);
     return;
   }
 
-  const combined = [shareText, shareUrl].filter(Boolean).join("\n");
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(combined);
-    statusEl.textContent = "تم نسخ الرابط";
-    setTimeout(updateStatusLine, 2000);
-  }
+  lastTapByCard.set(key, now);
 }
 
 function renderNewsList() {
@@ -165,10 +164,11 @@ function renderNewsList() {
       <div class="news-card-foot">
         <div class="news-card-meta">
           <span class="topic">${escapeHtml(article.topic || "عام")}</span>
-          <span class="source">${escapeHtml(article.sourceLabel || "")}</span>
+          <span class="source">${escapeHtml(displaySource(article))}</span>
         </div>
-        <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة">↗</button>
+        <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة كصورة">↗</button>
       </div>
+      <p class="news-card-hint">اضغط مرتين لفتح المصدر · ↗ للمشاركة على إنستغرام/فيسبوك</p>
     </article>`,
     )
     .join("");
@@ -177,7 +177,7 @@ function renderNewsList() {
     card.addEventListener("click", (event) => {
       if (event.target.closest(".share-article-btn")) return;
       const article = articles[Number(card.dataset.index)];
-      if (article?.link) window.tnewsWidget.openLink(article.link);
+      handleCardTap(card, article);
     });
   });
 
@@ -187,13 +187,10 @@ function renderNewsList() {
       const article = articles[Number(btn.dataset.shareIndex)];
       if (!article) return;
       try {
-        await shareContent({
-          title: article.title,
-          text: article.title,
-          url: article.link,
-        });
+        await shareArticleAsStory(article);
       } catch {
-        /* user cancelled */
+        statusEl.textContent = "تعذّرت المشاركة";
+        setTimeout(updateStatusLine, 2000);
       }
     });
   });
@@ -252,14 +249,12 @@ themeBtn.addEventListener("click", (event) => {
 
 shareBtn.addEventListener("click", async (event) => {
   event.stopPropagation();
+  if (!articles[0]) return;
   try {
-    await shareContent({
-      title: "Tnews",
-      text: "تابع أخبار تونس مع Tnews",
-      url: articles[0]?.link || "",
-    });
+    await shareArticleAsStory(articles[0]);
   } catch {
-    /* cancelled */
+    statusEl.textContent = "تعذّرت المشاركة";
+    setTimeout(updateStatusLine, 2000);
   }
 });
 

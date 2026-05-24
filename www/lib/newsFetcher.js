@@ -1,10 +1,10 @@
 (function () {
   const FEEDS = [
+    { id: "nawaat", label: "نواة — Nawaat", url: "https://nawaat.org/feed/", locale: "ar", priority: true },
+    { id: "alqatiba", label: "الكتيبة — Al Katiba", url: "https://alqatiba.com/feed/", locale: "ar", priority: true },
     { id: "tap-tn-ar", label: "TAP", url: "https://www.tap.info.tn/ar/rss/tunisia", locale: "ar" },
     { id: "lapresse-tn-ar", label: "La Presse", url: "https://www.lapresse.tn/feed/", locale: "ar" },
     { id: "mosaique-ar", label: "موزاييك", url: "https://www.mosaiquefm.net/ar/rss/", locale: "ar" },
-    { id: "nawaat", label: "نواة", url: "https://nawaat.org/feed/", locale: "ar" },
-    { id: "alqatiba", label: "الكتيبة", url: "https://alqatiba.com/feed/", locale: "ar" },
     { id: "businessnews", label: "Business News", url: "https://www.businessnews.com.tn/rss", locale: "fr" },
     { id: "webdo-fr", label: "Webdo.tn", url: "https://www.webdo.tn/feed/", locale: "fr" },
   ];
@@ -95,7 +95,8 @@
     const doc = new DOMParser().parseFromString(xmlText, "text/xml");
     if (doc.querySelector("parsererror")) return [];
 
-    const items = Array.from(doc.querySelectorAll("item, entry")).slice(0, 12);
+    const limit = source.priority ? 15 : 12;
+    const items = Array.from(doc.querySelectorAll("item, entry")).slice(0, limit);
     return items
       .map((item, index) => {
         const title = stripHtml(childText(item, "title"));

@@ -61,13 +61,27 @@ body {
 
 .app-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
   gap: 10px;
-  padding: 12px 16px 8px;
+  padding: 12px 16px 10px;
   flex-shrink: 0;
   background: var(--header-bg);
   border-bottom: 1px solid var(--border);
+}
+
+.header-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-title {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--accent-soft);
 }
 
 .weather-bar {
@@ -162,6 +176,14 @@ body {
   border-radius: 14px;
   padding: 14px 16px;
   transition: background 0.15s ease;
+  cursor: default;
+}
+
+.news-card-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  color: var(--muted);
+  opacity: 0.75;
 }
 
 .news-card:active {

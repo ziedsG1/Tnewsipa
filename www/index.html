@@ -14,14 +14,17 @@
   <body>
     <div class="app" id="app">
       <header class="app-header">
+        <div class="header-top">
+          <h1 class="app-title">Tnews</h1>
+          <div class="header-actions">
+            <button type="button" class="icon-btn" id="theme-btn" title="Theme">◐</button>
+            <button type="button" class="icon-btn" id="share-btn" title="Share">↗</button>
+            <button type="button" class="icon-btn" id="refresh-btn" title="Refresh">↻</button>
+          </div>
+        </div>
         <div class="weather-bar" id="weather-bar">
           <span class="weather-icon" aria-hidden="true">☁</span>
           <span class="weather-text" id="weather-text">جاري تحميل الطقس…</span>
-        </div>
-        <div class="header-actions">
-          <button type="button" class="icon-btn" id="theme-btn" title="Theme">◐</button>
-          <button type="button" class="icon-btn" id="share-btn" title="Share">↗</button>
-          <button type="button" class="icon-btn" id="refresh-btn" title="Refresh">↻</button>
         </div>
       </header>
 
@@ -36,6 +39,7 @@
     </div>
     <script src="lib/newsFetcher.js"></script>
     <script src="lib/weather.js"></script>
+    <script src="lib/shareCard.js"></script>
     <script src="app.js"></script>
     <script src="widget.js"></script>
   </body>
