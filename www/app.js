@@ -23,7 +23,7 @@
     }
     syncWidget(payload);
     if (window.TnewsNotifications?.onNewsUpdated) {
-      window.TnewsNotifications.onNewsUpdated(payload);
+      Promise.resolve(window.TnewsNotifications.onNewsUpdated(payload)).catch(() => {});
     }
   }
 
@@ -139,7 +139,18 @@
       window: { width: 520, height: 220 },
     }),
 
-    loadNews: async () => refreshNewsCache(),
+    loadNews: async () => {
+      const cached = readCache();
+      if (cached?.articles?.length) {
+        refreshNewsCache()
+          .then((fresh) => {
+            if (fresh) notifyListeners(fresh);
+          })
+          .catch(() => {});
+        return normalizePayload(cached);
+      }
+      return refreshNewsCache();
+    },
 
     openLink: openExternalLink,
 

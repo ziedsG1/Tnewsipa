@@ -98,6 +98,8 @@ async function toggleNotifications() {
     setTimeout(updateStatusLine, 2000);
   }
 }
+
+function weatherEmoji(label) {
   if (!label) return "☁";
   if (/صاف|Clear/i.test(label)) return "☀";
   if (/مطر|رذاذ|زخات/i.test(label)) return "🌧";
@@ -279,7 +281,7 @@ shareBtn.addEventListener("click", async (event) => {
   }
 });
 
-notifyBtn.addEventListener("click", async (event) => {
+notifyBtn?.addEventListener("click", async (event) => {
   event.stopPropagation();
   await toggleNotifications();
 });
@@ -288,7 +290,7 @@ notifyBtn.addEventListener("click", async (event) => {
   try {
     initTheme();
     if (window.TnewsNotifications?.init) {
-      await window.TnewsNotifications.init();
+      window.TnewsNotifications.init().catch(() => {});
       updateNotifyButton();
     }
     if (!window.tnewsWidget) {
@@ -299,7 +301,8 @@ notifyBtn.addEventListener("click", async (event) => {
       applyPayload(payload);
     });
     statusTimer = setInterval(updateStatusLine, 30000);
-    await Promise.all([loadNews(), loadWeather()]);
+    await loadNews();
+    loadWeather().catch(() => {});
   } catch (err) {
     statusEl.textContent = "فشل بدء التطبيق — اضغط ↻";
     console.error("init failed", err);
