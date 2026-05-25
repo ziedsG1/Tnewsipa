@@ -4,6 +4,7 @@ const newsListEl = document.getElementById("news-list");
 const refreshBtn = document.getElementById("refresh-btn");
 const themeBtn = document.getElementById("theme-btn");
 const shareBtn = document.getElementById("share-btn");
+const notifyBtn = document.getElementById("notify-btn");
 const weatherTextEl = document.getElementById("weather-text");
 const weatherIconEl = document.querySelector(".weather-icon");
 
@@ -76,7 +77,27 @@ function displaySource(article) {
   return article.sourceLabel || "";
 }
 
-function weatherEmoji(label) {
+function updateNotifyButton() {
+  if (!notifyBtn || !window.TnewsNotifications) return;
+  const on = window.TnewsNotifications.isEnabled();
+  notifyBtn.classList.toggle("active", on);
+  notifyBtn.title = on ? "إيقاف الإشعارات" : "تفعيل الإشعارات";
+}
+
+async function toggleNotifications() {
+  if (!window.TnewsNotifications) return;
+  const enabled = await window.TnewsNotifications.toggle();
+  updateNotifyButton();
+  if (enabled) {
+    statusEl.textContent = "الإشعارات مفعّلة — عنوان + وقت";
+    const payload = articles.length ? { articles } : null;
+    if (payload) await window.TnewsNotifications.onNewsUpdated(payload);
+    setTimeout(updateStatusLine, 2500);
+  } else {
+    statusEl.textContent = "الإشعارات متوقفة";
+    setTimeout(updateStatusLine, 2000);
+  }
+}
   if (!label) return "☁";
   if (/صاف|Clear/i.test(label)) return "☀";
   if (/مطر|رذاذ|زخات/i.test(label)) return "🌧";
@@ -258,9 +279,18 @@ shareBtn.addEventListener("click", async (event) => {
   }
 });
 
+notifyBtn.addEventListener("click", async (event) => {
+  event.stopPropagation();
+  await toggleNotifications();
+});
+
 (async function init() {
   try {
     initTheme();
+    if (window.TnewsNotifications?.init) {
+      await window.TnewsNotifications.init();
+      updateNotifyButton();
+    }
     if (!window.tnewsWidget) {
       statusEl.textContent = "خطأ في التحميل — أعد فتح التطبيق";
       return;

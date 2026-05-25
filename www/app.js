@@ -22,6 +22,9 @@
       /* ignore quota errors */
     }
     syncWidget(payload);
+    if (window.TnewsNotifications?.onNewsUpdated) {
+      window.TnewsNotifications.onNewsUpdated(payload);
+    }
   }
 
   function syncWidget(payload) {
