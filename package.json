@@ -6,7 +6,9 @@
   "scripts": {
     "sync": "npx cap sync ios",
     "open:ios": "npx cap open ios",
-    "build:web": "node scripts/copy-www.js"
+    "build:web": "node scripts/copy-www.js",
+    "docs:pdf": "node scripts/generate-documentation-pdf.mjs",
+    "splash": "node scripts/generate-splash.mjs"
   },
   "dependencies": {
     "@capacitor/app": "^7.0.1",

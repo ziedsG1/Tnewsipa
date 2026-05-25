@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tnews Widget — Documentation</title>
+  <style>
+  @page { margin: 18mm 16mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: "Segoe UI", Tahoma, "Noto Sans Arabic", Arial, sans-serif;
+    font-size: 11pt;
+    line-height: 1.55;
+    color: #1a1a1a;
+    max-width: 210mm;
+    margin: 0 auto;
+    padding: 12mm 0;
+  }
+  h1 { font-size: 22pt; border-bottom: 2px solid #2563eb; padding-bottom: 0.3em; margin-top: 0; }
+  h2 { font-size: 15pt; color: #1e40af; margin-top: 1.4em; page-break-after: avoid; }
+  h3 { font-size: 12.5pt; margin-top: 1.1em; page-break-after: avoid; }
+  h4 { font-size: 11pt; }
+  p, li { orphans: 3; widows: 3; }
+  a { color: #2563eb; word-break: break-all; }
+  code {
+    font-family: Consolas, "Courier New", monospace;
+    font-size: 9.5pt;
+    background: #f1f5f9;
+    padding: 0.15em 0.35em;
+    border-radius: 3px;
+  }
+  pre {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 12px 14px;
+    border-radius: 6px;
+    overflow-x: auto;
+    font-size: 8.5pt;
+    line-height: 1.45;
+    page-break-inside: avoid;
+  }
+  pre code { background: transparent; color: inherit; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1em 0;
+    font-size: 10pt;
+    page-break-inside: avoid;
+  }
+  th, td {
+    border: 1px solid #cbd5e1;
+    padding: 6px 8px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #e2e8f0; font-weight: 600; }
+  tr:nth-child(even) td { background: #f8fafc; }
+  blockquote {
+    border-left: 4px solid #94a3b8;
+    margin: 1em 0;
+    padding: 0.25em 0 0.25em 1em;
+    color: #475569;
+  }
+  hr { border: none; border-top: 1px solid #cbd5e1; margin: 1.5em 0; }
+  .cover {
+    text-align: center;
+    padding: 2em 0 3em;
+    margin-bottom: 2em;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .cover .subtitle { color: #64748b; font-size: 12pt; margin-top: 0.5em; }
+  .mermaid-note {
+    background: #eff6ff;
+    border: 1px solid #93c5fd;
+    padding: 10px 12px;
+    border-radius: 6px;
+    font-size: 10pt;
+    margin: 1em 0;
+  }
+</style>
+</head>
+<body>
+  <div class="cover">
+    <h1>Tnews Widget — Project Documentation</h1>
+    <p class="subtitle">iOS app · Capacitor · WidgetKit · v2.0.1</p>
+    <p class="subtitle">Generated 25 May 2026, 23:49</p>
+  </div>
+  <h1>Tnews Widget — Project Documentation</h1>
+<p><strong>Repository:</strong> <a href="https://github.com/ziedsG1/Tnewsipa">github.com/ziedsG1/Tnewsipa</a><br><strong>Current iOS version:</strong> 2.0.1<br><strong>Bundle ID:</strong> <code>tn.tnews.widget</code><br><strong>Display name:</strong> Tnews Widget  </p>
+<p>This document describes the full project: purpose, architecture, features, how to build and install, and how to maintain the codebase.</p>
+<hr>
+<h2>Table of contents</h2>
+<ol>
+<li><a href="#1-overview">Overview</a></li>
+<li><a href="#2-features">Features</a></li>
+<li><a href="#3-architecture">Architecture</a></li>
+<li><a href="#4-project-structure">Project structure</a></li>
+<li><a href="#5-web-application-layer">Web application layer</a></li>
+<li><a href="#6-news-and-data-pipeline">News and data pipeline</a></li>
+<li><a href="#7-ios-native-layer">iOS native layer</a></li>
+<li><a href="#8-configuration-reference">Configuration reference</a></li>
+<li><a href="#9-development-workflow">Development workflow</a></li>
+<li><a href="#10-building-and-installing-on-iphone">Building and installing on iPhone</a></li>
+<li><a href="#11-user-guide">User guide</a></li>
+<li><a href="#12-troubleshooting">Troubleshooting</a></li>
+<li><a href="#13-related-documents">Related documents</a></li>
+</ol>
+<hr>
+<h2>1. Overview</h2>
+<p><strong>Tnews Widget</strong> is a Tunisia-focused news app in Arabic (RTL). It was ported from the original <strong>Windows Electron desktop widget</strong> (<code>C:\Program Files\Tnews Widget</code>) to <strong>iOS</strong> using <a href="https://capacitorjs.com/">Capacitor</a>.</p>
+<p>The app:</p>
+<ul>
+<li>Fetches headlines from multiple Tunisian RSS feeds</li>
+<li>Shows a scrollable list of news cards in the app</li>
+<li>Syncs headlines to an <strong>iOS home-screen widget</strong> (WidgetKit)</li>
+<li>Adds mobile-only features: weather, dark/light theme, story-style image sharing, and local notifications</li>
+</ul>
+<p>You <strong>cannot build a signed <code>.ipa</code> on Windows alone</strong> — Apple requires macOS and Xcode. This repo includes a <strong>GitHub Actions</strong> workflow that builds an unsigned IPA on a Mac runner.</p>
+<hr>
+<h2>2. Features</h2>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>News list</strong></td>
+<td>Scrollable cards with source, topic, time, and summary</td>
+</tr>
+<tr>
+<td><strong>RSS sources</strong></td>
+<td>Nawaat, Al Katiba (priority), TAP, La Presse, Mosaique FM, Business News, Webdo.tn</td>
+</tr>
+<tr>
+<td><strong>Caching</strong></td>
+<td><code>localStorage</code> cache; stale cache used if network fails</td>
+</tr>
+<tr>
+<td><strong>Background refresh</strong></td>
+<td>Every 3 minutes while app is open</td>
+</tr>
+<tr>
+<td><strong>Home-screen widget</strong></td>
+<td>Small / medium / large WidgetKit views; rotates headlines</td>
+</tr>
+<tr>
+<td><strong>Weather</strong></td>
+<td>Open-Meteo for Tunis (no API key)</td>
+</tr>
+<tr>
+<td><strong>Theme</strong></td>
+<td>Dark / light toggle, persisted</td>
+</tr>
+<tr>
+<td><strong>Share</strong></td>
+<td>1080×1920 story image (canvas) for Instagram / Facebook; per-article ↗ on cards</td>
+</tr>
+<tr>
+<td><strong>Open article</strong></td>
+<td>Double-tap a card to open source URL in in-app browser</td>
+</tr>
+<tr>
+<td><strong>Notifications</strong></td>
+<td>Optional local notifications (title + relative time) when news updates</td>
+</tr>
+<tr>
+<td><strong>Refresh</strong></td>
+<td>Header ↻ reloads news and weather</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>3. Architecture</h2>
+<pre><code class="language-mermaid">flowchart TB
+  subgraph Web[&quot;www/ (Capacitor WebView)&quot;]
+    HTML[index.html]
+    WJS[widget.js — UI]
+    AJS[app.js — cache &amp; bridge]
+    NF[newsFetcher.js]
+    WTH[weather.js]
+    SC[shareCard.js]
+    NT[notifications.js]
+  end
+
+  subgraph Native[&quot;ios/App (Swift)&quot;]
+    WS[WidgetSyncPlugin]
+    WDS[WidgetDataStore — App Group]
+    WKE[TnewsWidgetExtension — WidgetKit]
+    WI[WidgetInstallPlugin — optional guide]
+  end
+
+  RSS[(RSS feeds)]
+  OM[(Open-Meteo API)]
+
+  HTML --&gt; WJS
+  WJS --&gt; AJS
+  AJS --&gt; NF
+  WJS --&gt; WTH
+  WJS --&gt; SC
+  WJS --&gt; NT
+  NF --&gt; RSS
+  WTH --&gt; OM
+  AJS --&gt;|saveNews JSON| WS
+  WS --&gt; WDS
+  WDS --&gt; WKE
+</code></pre>
+<p><strong>Layers:</strong></p>
+<ol>
+<li><strong>Presentation</strong> — <code>widget.js</code>, <code>styles.css</code>, <code>index.html</code></li>
+<li><strong>Application logic</strong> — <code>app.js</code> (cache, refresh schedule, Capacitor plugins)</li>
+<li><strong>Services</strong> — <code>lib/*.js</code> (fetch, weather, share, notifications)</li>
+<li><strong>Native bridge</strong> — Capacitor plugins + custom <code>WidgetSync</code> / <code>WidgetInstall</code></li>
+<li><strong>Widget extension</strong> — Separate target reading shared App Group data</li>
+</ol>
+<p>Scripts load in order (see <code>index.html</code>): libraries first, then <code>app.js</code>, then <code>widget.js</code>.</p>
+<hr>
+<h2>4. Project structure</h2>
+<pre><code>Tnewsipa/
+├── www/                          # Capacitor web assets (copied to ios/App/App/public on sync)
+│   ├── index.html                # Shell, header, news list container
+│   ├── styles.css                # RTL layout, themes, cards
+│   ├── widget.js                 # UI: render list, gestures, theme, init
+│   ├── app.js                    # News cache, refresh, window.tnewsWidget API
+│   └── lib/
+│       ├── newsFetcher.js        # RSS fetch + parse + topic inference
+│       ├── weather.js            # Open-Meteo + cache
+│       ├── shareCard.js          # Canvas story image + native share
+│       └── notifications.js    # Local notifications plugin wrapper
+│
+├── ios/App/
+│   ├── App/                      # Main Capacitor iOS app
+│   │   ├── AppDelegate.swift
+│   │   ├── Info.plist
+│   │   ├── App.entitlements      # App Group: group.tn.tnews.widget
+│   │   ├── WidgetSyncPlugin.swift / .m
+│   │   ├── WidgetInstallPlugin.swift / .m
+│   │   └── Assets.xcassets/      # App icon, splash
+│   ├── TnewsWidgetExtension/     # WidgetKit extension
+│   │   ├── TnewsWidgetBundle.swift
+│   │   └── TnewsWidgetExtension.entitlements
+│   ├── Shared/
+│   │   └── WidgetDataStore.swift # Read/write JSON in App Group
+│   ├── App.xcodeproj
+│   └── Podfile
+│
+├── capacitor.config.json         # appId, webDir, plugins
+├── package.json                  # Capacitor dependencies &amp; scripts
+├── .github/workflows/
+│   └── build-ios-ipa.yml         # macOS CI → unsigned IPA artifact
+│
+├── extracted-fresh/              # Reference copy of original Electron app (optional)
+├── GITHUB-SETUP.md               # Step-by-step GitHub + Sideloadly guide
+├── README.md                     # Quick start
+└── DOCUMENTATION.md              # This file
+</code></pre>
+<hr>
+<h2>5. Web application layer</h2>
+<h3>5.1 <code>window.tnewsWidget</code> (<code>app.js</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>loadNews()</code></td>
+<td>Returns cached articles immediately if present; refreshes in background</td>
+</tr>
+<tr>
+<td><code>openLink(url)</code></td>
+<td>Opens HTTPS links via <code>@capacitor/browser</code> on device</td>
+</tr>
+<tr>
+<td><code>onNewsUpdated(cb)</code></td>
+<td>Subscribe to background refresh updates</td>
+</tr>
+<tr>
+<td><code>syncToHomeScreenWidget()</code></td>
+<td>Pushes cache to native <code>WidgetSync</code> plugin</td>
+</tr>
+<tr>
+<td><code>share({ title, text, url })</code></td>
+<td>System share sheet</td>
+</tr>
+<tr>
+<td><code>getConfig()</code></td>
+<td>Rotation / window metadata (legacy desktop parity)</td>
+</tr>
+<tr>
+<td><code>minimize()</code></td>
+<td>Native minimize when available</td>
+</tr>
+</tbody></table>
+<p><strong>Cache key:</strong> <code>tnews-news-cache</code> in <code>localStorage</code>.</p>
+<p><strong>Config (in <code>app.js</code>):</strong></p>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>rotateSeconds</code></td>
+<td>8</td>
+</tr>
+<tr>
+<td><code>refreshMinutes</code></td>
+<td>3</td>
+</tr>
+<tr>
+<td><code>maxAgeDays</code></td>
+<td>7 (articles filtered by publish date)</td>
+</tr>
+</tbody></table>
+<h3>5.2 <code>window.TnewsNewsFetcher</code> (<code>lib/newsFetcher.js</code>)</h3>
+<ul>
+<li>Fetches all feeds in parallel with <strong>10s timeout</strong> per feed</li>
+<li>Uses <strong>Capacitor HTTP</strong> on native iOS when available (avoids WebView CORS limits)</li>
+<li>Falls back to <code>fetch()</code> in browser</li>
+<li>Merges items, deduplicates by link, sorts by date</li>
+<li>Assigns Arabic <strong>topic</strong> labels from title keywords (رياضة, اقتصاد, سياسة, …)</li>
+<li>Priority feeds (Nawaat, Al Katiba) surface first in merge logic</li>
+</ul>
+<h3>5.3 <code>window.TnewsWeather</code> (<code>lib/weather.js</code>)</h3>
+<ul>
+<li>API: Open-Meteo forecast for Tunis coordinates</li>
+<li>Caches result in <code>localStorage</code></li>
+<li>Returns <code>{ city, temp, label }</code> for the header weather bar</li>
+</ul>
+<h3>5.4 <code>window.TnewsShareCard</code> (<code>lib/shareCard.js</code>)</h3>
+<ul>
+<li>Renders branded 1080×1920 PNG via <code>&lt;canvas&gt;</code></li>
+<li>Saves/shares through <code>@capacitor/filesystem</code> and <code>@capacitor/share</code> on device</li>
+</ul>
+<h3>5.5 <code>window.TnewsNotifications</code> (<code>lib/notifications.js</code>)</h3>
+<ul>
+<li>Wraps <code>@capacitor/local-notifications</code></li>
+<li>Toggle via 🔔; schedules a small queue of article notifications</li>
+<li>Called from <code>app.js</code> <code>writeCache()</code> when notifications are enabled</li>
+</ul>
+<h3>5.6 UI behavior (<code>widget.js</code>)</h3>
+<ul>
+<li><strong>Single tap</strong> on card: no navigation (desktop-style)</li>
+<li><strong>Double tap</strong> (within 450 ms): open article URL</li>
+<li><strong>↗ on card</strong>: share that article as story image</li>
+<li><strong>Header ↗</strong>: share top headline</li>
+<li><strong>◐</strong>: toggle <code>data-theme</code> on <code>&lt;html&gt;</code></li>
+<li><strong>↻</strong>: reload news + weather</li>
+</ul>
+<hr>
+<h2>6. News and data pipeline</h2>
+<pre><code>RSS feeds → newsFetcher.js → app.js normalize/filter → localStorage
+                                    ↓
+                              widget.js render
+                                    ↓
+                         WidgetSyncPlugin → App Group → WidgetKit timeline
+</code></pre>
+<p><strong>Feed list</strong> (in <code>newsFetcher.js</code>):</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Label</th>
+<th>URL</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>nawaat</td>
+<td>نواة — Nawaat</td>
+<td><a href="https://nawaat.org/feed/">https://nawaat.org/feed/</a></td>
+</tr>
+<tr>
+<td>alqatiba</td>
+<td>الكتيبة — Al Katiba</td>
+<td><a href="https://alqatiba.com/feed/">https://alqatiba.com/feed/</a></td>
+</tr>
+<tr>
+<td>tap-tn-ar</td>
+<td>TAP</td>
+<td><a href="https://www.tap.info.tn/ar/rss/tunisia">https://www.tap.info.tn/ar/rss/tunisia</a></td>
+</tr>
+<tr>
+<td>lapresse-tn-ar</td>
+<td>La Presse</td>
+<td><a href="https://www.lapresse.tn/feed/">https://www.lapresse.tn/feed/</a></td>
+</tr>
+<tr>
+<td>mosaique-ar</td>
+<td>موزاييك</td>
+<td><a href="https://www.mosaiquefm.net/ar/rss/">https://www.mosaiquefm.net/ar/rss/</a></td>
+</tr>
+<tr>
+<td>businessnews</td>
+<td>Business News</td>
+<td><a href="https://www.businessnews.com.tn/rss">https://www.businessnews.com.tn/rss</a></td>
+</tr>
+<tr>
+<td>webdo-fr</td>
+<td>Webdo.tn</td>
+<td><a href="https://www.webdo.tn/feed/">https://www.webdo.tn/feed/</a></td>
+</tr>
+</tbody></table>
+<p>If fewer than 3 articles fall within 7 days, the filter widens to 14 days, then falls back to the latest 50 items.</p>
+<hr>
+<h2>7. iOS native layer</h2>
+<h3>7.1 Capacitor plugins (npm)</h3>
+<ul>
+<li><code>@capacitor/app</code></li>
+<li><code>@capacitor/browser</code></li>
+<li><code>@capacitor/share</code></li>
+<li><code>@capacitor/filesystem</code></li>
+<li><code>@capacitor/local-notifications</code></li>
+<li><code>@capacitor/splash-screen</code></li>
+<li><code>@capacitor/status-bar</code></li>
+</ul>
+<p><code>capacitor.config.json</code> enables <strong>CapacitorHttp</strong> for native network requests.</p>
+<h3>7.2 Custom plugins</h3>
+<table>
+<thead>
+<tr>
+<th>Plugin</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>WidgetSync</strong></td>
+<td><code>saveNews({ payloadJson })</code> writes news JSON to App Group <code>group.tn.tnews.widget</code></td>
+</tr>
+<tr>
+<td><strong>WidgetInstall</strong></td>
+<td>Optional helper to explain adding widget manually (Apple does not allow programmatic widget picker)</td>
+</tr>
+</tbody></table>
+<h3>7.3 Widget extension</h3>
+<ul>
+<li>Target: <code>TnewsWidgetExtension</code></li>
+<li>Reads <code>WidgetDataStore.articles()</code> from shared UserDefaults</li>
+<li>Timeline rotates up to 16 headlines every 5 minutes per entry; reload policy ~10 minutes</li>
+<li>Supports <strong>systemSmall</strong>, <strong>systemMedium</strong>, <strong>systemLarge</strong></li>
+<li>RTL layout via SwiftUI <code>layoutDirection</code></li>
+</ul>
+<p><strong>Adding the widget on iPhone:</strong> Long-press home screen → <strong>+</strong> → search <strong>Tnews</strong> → choose size. Open the main app at least once so feeds populate the shared cache.</p>
+<h3>7.4 Entitlements and permissions</h3>
+<ul>
+<li><strong>App Group:</strong> <code>group.tn.tnews.widget</code> (main app + extension)</li>
+<li><strong>Info.plist:</strong> App Transport Security allows network loads; notification usage description; background mode <code>fetch</code> where configured</li>
+</ul>
+<hr>
+<h2>8. Configuration reference</h2>
+<h3><code>capacitor.config.json</code></h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>appId</code></td>
+<td><code>tn.tnews.widget</code></td>
+</tr>
+<tr>
+<td><code>appName</code></td>
+<td><code>Tnews Widget</code></td>
+</tr>
+<tr>
+<td><code>webDir</code></td>
+<td><code>www</code></td>
+</tr>
+<tr>
+<td><code>ios.backgroundColor</code></td>
+<td><code>#080c16</code></td>
+</tr>
+</tbody></table>
+<h3><code>package.json</code> scripts</h3>
+<pre><code class="language-bash">npm install          # Install Capacitor dependencies
+npm run sync         # npx cap sync ios — copy www → ios project
+npm run open:ios     # Open Xcode workspace (requires macOS)
+</code></pre>
+<h3>Version numbers</h3>
+<ul>
+<li><strong>Marketing version</strong> (user-facing): <code>MARKETING_VERSION</code> in <code>ios/App/App.xcodeproj/project.pbxproj</code> (e.g. 2.0.1)</li>
+<li><strong>package.json</strong> <code>version</code> may lag; trust Xcode marketing version for IPA builds</li>
+</ul>
+<hr>
+<h2>9. Development workflow</h2>
+<h3>On Windows (web + sync only)</h3>
+<pre><code class="language-powershell">cd c:\Users\zied\Tnewsipa
+npm install
+# Edit files under www/
+npm run sync
+git add .
+git commit -m &quot;Describe your change&quot;
+git push origin main
+</code></pre>
+<p>GitHub Actions rebuilds the IPA automatically on push to <code>main</code>.</p>
+<h3>On macOS (full native build)</h3>
+<pre><code class="language-bash">npm install
+npx cap sync ios
+cd ios/App &amp;&amp; pod install
+npx cap open ios
+</code></pre>
+<p>In Xcode: set <strong>Signing Team</strong>, select iPhone, Run ▶.</p>
+<h3>After any <code>www/</code> change</h3>
+<p>Always run <code>npx cap sync ios</code> before committing so <code>ios/App/App/public</code> matches.</p>
+<hr>
+<h2>10. Building and installing on iPhone</h2>
+<h3>Option A — GitHub Actions (recommended from Windows)</h3>
+<ol>
+<li>Push to <a href="https://github.com/ziedsG1/Tnewsipa">github.com/ziedsG1/Tnewsipa</a></li>
+<li><strong>Actions</strong> → <strong>Build iOS IPA</strong> → wait for green check</li>
+<li>Download artifact <strong>TnewsWidget-ipa</strong> → <code>TnewsWidget-unsigned.ipa</code></li>
+<li>Sign and install with <strong>Sideloadly</strong> (see <a href="./GITHUB-SETUP.md">GITHUB-SETUP.md</a>)</li>
+</ol>
+<p>The workflow runs <code>xcodebuild archive</code> with signing disabled, then zips <code>Payload/App.app</code> into an unsigned IPA.</p>
+<h3>Option B — Mac + Xcode</h3>
+<p>Connect iPhone via USB → Run from Xcode (signs with your Apple ID).</p>
+<h3>Option C — TestFlight</h3>
+<p>Requires paid Apple Developer Program and App Store Connect upload.</p>
+<h3>Install notes</h3>
+<table>
+<thead>
+<tr>
+<th>Topic</th>
+<th>Detail</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Unsigned IPA</strong></td>
+<td>Must be signed with Apple ID (Sideloadly / AltStore / Xcode)</td>
+</tr>
+<tr>
+<td><strong>Free Apple ID</strong></td>
+<td>App expires after ~7 days; re-sideload to refresh</td>
+</tr>
+<tr>
+<td><strong>Files app</strong></td>
+<td>Opening IPA in Files does <strong>not</strong> install; use Sideloadly from PC</td>
+</tr>
+<tr>
+<td><strong>AltStore</strong></td>
+<td>Region-dependent; Sideloadly is often easier on Windows</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>11. User guide</h2>
+<h3>In-app controls</h3>
+<table>
+<thead>
+<tr>
+<th>Control</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>↻</td>
+<td>Refresh news and weather</td>
+</tr>
+<tr>
+<td>◐</td>
+<td>Switch dark / light theme</td>
+</tr>
+<tr>
+<td>🔔</td>
+<td>Enable or disable local notifications (allow iOS permission when prompted)</td>
+</tr>
+<tr>
+<td>↗ (header)</td>
+<td>Share current top story as image</td>
+</tr>
+<tr>
+<td>↗ (on card)</td>
+<td>Share that article as story image</td>
+</tr>
+<tr>
+<td>Double-tap card</td>
+<td>Open article in browser</td>
+</tr>
+<tr>
+<td>Scroll list</td>
+<td>Browse all loaded headlines</td>
+</tr>
+</tbody></table>
+<h3>Home-screen widget</h3>
+<ol>
+<li>Install and open the app once (loads news into shared storage).</li>
+<li>Add <strong>Tnews</strong> widget from the iOS widget gallery.</li>
+<li>Widget updates when you open the app or when iOS refreshes the widget timeline.</li>
+</ol>
+<h3>Status messages (Arabic)</h3>
+<table>
+<thead>
+<tr>
+<th>Message</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>جاري التحميل…</td>
+<td>Initial load</td>
+</tr>
+<tr>
+<td>جاري التحديث…</td>
+<td>Refresh in progress</td>
+</tr>
+<tr>
+<td>لا توجد أخبار — اضغط ↻</td>
+<td>No articles; check network and refresh</td>
+</tr>
+<tr>
+<td>فشل التحديث — اضغط ↻</td>
+<td>Fetch error</td>
+</tr>
+</tbody></table>
+<hr>
+<h2>12. Troubleshooting</h2>
+<table>
+<thead>
+<tr>
+<th>Problem</th>
+<th>Likely cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Stuck on “جاري التحميل…”</td>
+<td>JavaScript parse error in <code>widget.js</code> / <code>app.js</code></td>
+<td>Fix syntax; rebuild IPA; reinstall</td>
+</tr>
+<tr>
+<td>Empty news list</td>
+<td>No network or all feeds timed out</td>
+<td>Wi‑Fi/cellular; tap ↻; cached news should still show if previously loaded</td>
+</tr>
+<tr>
+<td>Widget shows placeholder</td>
+<td>App never opened or App Group empty</td>
+<td>Open main app, wait for headlines, re-add widget</td>
+</tr>
+<tr>
+<td>“Unable to install” / integrity error</td>
+<td>Unsigned or expired sideload</td>
+<td>Re-sign with Sideloadly and Apple ID</td>
+</tr>
+<tr>
+<td>App stops after 7 days</td>
+<td>Free developer certificate limit</td>
+<td>Re-sideload</td>
+</tr>
+<tr>
+<td>GitHub workflow fails on <code>pod install</code></td>
+<td>Transient runner issue</td>
+<td>Re-run workflow</td>
+</tr>
+<tr>
+<td>Notifications silent</td>
+<td>Permission denied or toggle off</td>
+<td>Settings → Tnews → Notifications; tap 🔔 in app</td>
+</tr>
+<tr>
+<td>Weather unavailable</td>
+<td>Open-Meteo unreachable</td>
+<td>Non-blocking; news still works</td>
+</tr>
+</tbody></table>
+<p><strong>Debug tip:</strong> Connect device to Safari <strong>Web Inspector</strong> (macOS) → inspect WebView console for <code>loadNews failed</code> / <code>init failed</code> errors.</p>
+<hr>
+<h2>13. Related documents</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><a href="./README.md">README.md</a></td>
+<td>Short overview and quick start</td>
+</tr>
+<tr>
+<td><a href="./GITHUB-SETUP.md">GITHUB-SETUP.md</a></td>
+<td>GitHub repo creation, Actions, Sideloadly install</td>
+</tr>
+<tr>
+<td><a href="./capacitor.config.json">capacitor.config.json</a></td>
+<td>Capacitor app metadata</td>
+</tr>
+<tr>
+<td><a href="./.github/workflows/build-ios-ipa.yml">.github/workflows/build-ios-ipa.yml</a></td>
+<td>CI build definition</td>
+</tr>
+</tbody></table>
+<h3>Origin desktop app</h3>
+<p>The Windows <strong>Tnews Widget</strong> Electron app lives at <code>C:\Program Files\Tnews Widget</code>. Reference extracts in <code>extracted-fresh/</code> and <code>extracted-app-fresh/</code> mirror its structure (<code>main.js</code>, <code>preload.js</code>, <code>src/widget.js</code>, <code>lib/newsFetcher.cjs</code>).</p>
+<h3>Changelog (high level)</h3>
+<table>
+<thead>
+<tr>
+<th>Version</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>1.5.x</td>
+<td>Initial iOS port from Electron</td>
+</tr>
+<tr>
+<td>1.6+</td>
+<td>Scrollable news list</td>
+</tr>
+<tr>
+<td>1.7</td>
+<td>Home-screen widget + install guide</td>
+</tr>
+<tr>
+<td>1.8</td>
+<td>Weather, theme, share, app icon</td>
+</tr>
+<tr>
+<td>1.9</td>
+<td>Story share, double-tap to open, source labels</td>
+</tr>
+<tr>
+<td>2.0</td>
+<td>Local notifications</td>
+</tr>
+<tr>
+<td>2.0.1</td>
+<td>Loading fix: <code>weatherEmoji</code> syntax, cache-first <code>loadNews</code>, non-blocking init</td>
+</tr>
+</tbody></table>
+<hr>
+<p><em>Last updated for project version 2.0.1.</em></p>
+
+</body>
+</html>

@@ -1,4 +1,13 @@
 (function () {
+  (function hideNativeSplash() {
+    const cap = window.Capacitor;
+    if (!cap?.isNativePlatform?.()) return;
+    const splash = cap.Plugins?.SplashScreen;
+    if (splash?.hide) {
+      Promise.resolve(splash.hide()).catch(() => {});
+    }
+  })();
+
   const CACHE_KEY = "tnews-news-cache";
   const CONFIG = {
     rotateSeconds: 8,

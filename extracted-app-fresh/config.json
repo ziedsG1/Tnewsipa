@@ -1,0 +1,14 @@
+{
+  "tnewsDataPath": "",
+  "tnewsApiUrl": "",
+  "localCachePath": "data/news-cache.json",
+  "rotateSeconds": 8,
+  "refreshMinutes": 3,
+  "maxAgeDays": 7,
+  "window": {
+    "width": 520,
+    "height": 220,
+    "marginRight": 24,
+    "marginBottom": 24
+  }
+}

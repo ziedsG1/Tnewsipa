@@ -1,107 +1,84 @@
-# Tnews Widget — iOS (IPA)
+# Tnews Widget — iOS
 
-iOS version of **Tnews Widget**, ported from the Windows Electron app at `C:\Program Files\Tnews Widget`.
+Arabic RTL news app for Tunisia, ported from the Windows **Tnews Widget** Electron app to **iOS** with [Capacitor](https://capacitorjs.com/). Includes a **home-screen widget**, weather, themes, story sharing, and local notifications.
 
-The app shows rotating Tunisia news headlines in Arabic (RSS feeds from TAP, La Presse, Mosaique FM, Nawaat, and others), matching the desktop widget behavior.
-
-## Important: IPA cannot be built on Windows alone
-
-Apple requires **macOS + Xcode** to compile an `.ipa` file. This project is ready to build; you need one of these options:
-
-| Option | What you need |
-|--------|----------------|
-| **Mac + Xcode** | Free Apple ID (install on your iPhone via USB) |
-| **GitHub Actions** | Push this repo to GitHub; workflow builds IPA on macOS (see below) |
-| **Apple Developer ($99/year)** | Signed IPA for TestFlight or direct install |
+**Repository:** [github.com/ziedsG1/Tnewsipa](https://github.com/ziedsG1/Tnewsipa)  
+**Bundle ID:** `tn.tnews.widget` · **Version:** 2.0.1
 
 ---
 
-## Quick start on a Mac
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| **[DOCUMENTATION.md](./DOCUMENTATION.md)** | Full project docs: architecture, APIs, feeds, iOS widget, build, troubleshooting |
+| **[docs/Tnews-Documentation.pdf](./docs/Tnews-Documentation.pdf)** | Same documentation as PDF |
+| **[GITHUB-SETUP.md](./GITHUB-SETUP.md)** | GitHub Actions + download IPA + Sideloadly install (Windows-friendly) |
+
+---
+
+## Features at a glance
+
+- Headlines from Tunisian RSS (Nawaat, Al Katiba, TAP, La Presse, Mosaique, …)
+- Scrollable news cards in the app
+- iOS **WidgetKit** extension (small / medium / large)
+- Weather for Tunis (Open-Meteo)
+- Dark / light theme
+- Share articles as 1080×1920 story images
+- Optional local notifications
+- Double-tap a card to open the source article
+
+---
+
+## Quick start
+
+### Windows (web changes + CI build)
+
+```powershell
+cd c:\Users\zied\Tnewsipa
+npm install
+# edit www/
+npm run sync
+git add .
+git commit -m "Your change"
+git push origin main
+```
+
+Then download the IPA from **GitHub → Actions → TnewsWidget-ipa** and install with [Sideloadly](https://sideloadly.io/). Details: [GITHUB-SETUP.md](./GITHUB-SETUP.md).
+
+### macOS (run on device)
 
 ```bash
-cd Tnewsipa
 npm install
 npx cap sync ios
+cd ios/App && pod install
 npx cap open ios
 ```
 
-In Xcode:
-
-1. Select your **Team** (Apple ID) under Signing & Capabilities.
-2. Connect your iPhone via USB.
-3. Choose your iPhone as the run destination.
-4. Press **Run** (▶) — the app installs on your phone.
-
-### Export IPA from Xcode
-
-1. **Product → Archive**
-2. **Distribute App → Development** (or Ad Hoc / App Store)
-3. Export the `.ipa` file
+Set your **Team** in Xcode, connect iPhone, press **Run**.
 
 ---
 
-## Build IPA with GitHub Actions (no Mac)
+## Project layout
 
-1. Create a GitHub repository and push this project:
-
-```bash
-git init
-git add .
-git commit -m "Add Tnews Widget iOS app"
-git remote add origin https://github.com/YOUR_USER/Tnewsipa.git
-git push -u origin main
+```
+www/              Web UI + news/weather/share/notifications
+ios/App/          Xcode project, WidgetKit extension, native plugins
+.github/workflows/  build-ios-ipa.yml — unsigned IPA on push to main
 ```
 
-2. Open **Actions → Build iOS IPA → Run workflow**.
-
-3. Download the **TnewsWidget-ipa** artifact when the job finishes.
-
-**Note:** The default workflow produces an **unsigned** IPA (for archiving). To install on iPhone you must **sign** the app:
-
-- Use Xcode on a Mac with your Apple ID, or
-- Add signing secrets to GitHub (certificate + provisioning profile), or
-- Use [AltStore](https://altstore.io/) / [Sideloadly](https://sideloadly.io/) with a signed build.
+See [DOCUMENTATION.md § Project structure](./DOCUMENTATION.md#4-project-structure) for the full tree.
 
 ---
 
-## Install IPA on your iPhone
+## Important constraints
 
-### Method A — Xcode (easiest, free Apple ID)
-
-Connect iPhone → Run from Xcode (no IPA file needed).
-
-### Method B — AltStore / Sideloadly
-
-1. Build or obtain a **signed** `.ipa`.
-2. Install AltStore or Sideloadly on your PC.
-3. Connect iPhone and sideload the IPA.
-4. Free Apple ID: app expires after 7 days (re-sign weekly).
-
-### Method C — TestFlight (Apple Developer)
-
-Upload signed IPA to App Store Connect → invite yourself via TestFlight.
+- **IPA cannot be built on Windows alone** — use GitHub Actions or a Mac.
+- CI produces an **unsigned** IPA; sign with Apple ID (Sideloadly / Xcode).
+- Free Apple ID installs **expire after ~7 days** — re-sideload to refresh.
+- Open the **main app once** before the home-screen widget shows real headlines.
 
 ---
-
-## Project structure
-
-```
-Tnewsipa/
-├── www/                 # Web UI (same look as desktop widget)
-│   ├── index.html
-│   ├── styles.css
-│   ├── widget.js
-│   ├── app.js           # News cache + Capacitor bridge
-│   └── lib/newsFetcher.js
-├── ios/                 # Native iOS project (Xcode)
-├── capacitor.config.json
-└── .github/workflows/build-ios-ipa.yml
-```
-
-## App ID
-
-- Bundle ID: `tn.tnews.widget`
-- Display name: **Tnews Widget**
 
 ## After changing web files
 
@@ -109,14 +86,11 @@ Tnewsipa/
 npx cap sync ios
 ```
 
-Then rebuild in Xcode or re-run the GitHub Action.
+Rebuild in Xcode or push to GitHub to trigger Actions.
 
 ---
 
-## Desktop widget source
+## Desktop source
 
-The Windows app was extracted from:
-
-`C:\Program Files\Tnews Widget\resources\app.asar`
-
-A copy of the extracted source is in `extracted-app/` (gitignored) for reference.
+Original Windows app: `C:\Program Files\Tnews Widget`  
+Reference extract: `extracted-fresh/`

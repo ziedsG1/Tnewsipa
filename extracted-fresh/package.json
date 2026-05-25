@@ -1,0 +1,10 @@
+{
+  "name": "tnews-widget",
+  "version": "1.5.1",
+  "description": "Tnews — desktop news widget for Windows",
+  "author": "Tnews",
+  "main": "main.js",
+  "dependencies": {
+    "rss-parser": "^3.13.0"
+  }
+}
