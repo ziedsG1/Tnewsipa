@@ -9,12 +9,27 @@ const weatherTextEl = document.getElementById("weather-text");
 const weatherIconEl = document.querySelector(".weather-icon");
 
 const THEME_KEY = "tnews-theme";
-const DOUBLE_TAP_MS = 450;
 
 let articles = [];
 let lastFetchedAt = null;
 let statusTimer = null;
-const lastTapByCard = new Map();
+let selectedIndex = null;
+let aiPanelArticle = null;
+
+const aiPanelEl = document.getElementById("ai-panel");
+const aiPanelBackdrop = document.getElementById("ai-panel-backdrop");
+const aiPanelClose = document.getElementById("ai-panel-close");
+const aiPanelTitle = document.getElementById("ai-panel-title");
+const aiPanelMeta = document.getElementById("ai-panel-meta");
+const aiPanelLoading = document.getElementById("ai-panel-loading");
+const aiPanelContent = document.getElementById("ai-panel-content");
+const aiPanelSetup = document.getElementById("ai-panel-setup");
+const aiPanelError = document.getElementById("ai-panel-error");
+const aiOpenSourceBtn = document.getElementById("ai-open-source");
+const aiApiKeyInput = document.getElementById("ai-api-key");
+const aiApiBaseInput = document.getElementById("ai-api-base");
+const aiApiModelInput = document.getElementById("ai-api-model");
+const aiSaveKeyBtn = document.getElementById("ai-save-key");
 
 function formatTime(pubDate) {
   if (!pubDate) return "";
@@ -149,18 +164,94 @@ async function shareArticleAsStory(article) {
   }
 }
 
-function handleCardTap(card, article) {
-  const key = card.dataset.index;
-  const now = Date.now();
-  const prev = lastTapByCard.get(key) || 0;
+function selectArticle(index) {
+  if (index === selectedIndex) {
+    selectedIndex = null;
+  } else {
+    selectedIndex = index;
+  }
+  renderNewsList();
+  if (selectedIndex != null) {
+    const card = newsListEl.querySelector(`.news-card[data-index="${selectedIndex}"]`);
+    card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+  }
+}
 
-  if (now - prev <= DOUBLE_TAP_MS) {
-    lastTapByCard.set(key, 0);
-    if (article?.link) window.tnewsWidget.openLink(article.link);
+function fillAiSetupFields() {
+  if (!window.TnewsAiSummary) return;
+  const cfg = window.TnewsAiSummary.getConfig();
+  if (aiApiKeyInput) aiApiKeyInput.value = cfg.apiKey || "";
+  if (aiApiBaseInput) aiApiBaseInput.value = cfg.baseUrl || window.TnewsAiSummary.defaults.baseUrl;
+  if (aiApiModelInput) aiApiModelInput.value = cfg.model || window.TnewsAiSummary.defaults.model;
+}
+
+function setAiPanelState({ loading, content, setup, error }) {
+  aiPanelLoading.hidden = !loading;
+  aiPanelContent.hidden = !content;
+  aiPanelSetup.hidden = !setup;
+  aiPanelError.hidden = !error;
+  if (error) aiPanelError.textContent = error;
+}
+
+function openAiPanel(article) {
+  aiPanelArticle = article;
+  aiPanelEl.hidden = false;
+  aiPanelEl.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+
+  const title = article.translatedTitle || article.title || "خبر";
+  aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
+  aiPanelMeta.textContent = `${displaySource(article)} · ${formatTime(article.pubDate) || "—"}`;
+  aiOpenSourceBtn.hidden = !article.link;
+
+  if (!window.TnewsAiSummary?.hasApiKey()) {
+    fillAiSetupFields();
+    setAiPanelState({ loading: false, content: false, setup: true, error: false });
     return;
   }
 
-  lastTapByCard.set(key, now);
+  runAiSummary(article);
+}
+
+function closeAiPanel() {
+  aiPanelEl.hidden = true;
+  aiPanelEl.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  aiPanelArticle = null;
+  aiPanelContent.innerHTML = "";
+  setAiPanelState({ loading: false, content: false, setup: false, error: false });
+}
+
+async function runAiSummary(article) {
+  setAiPanelState({ loading: true, content: false, setup: false, error: false });
+  try {
+    const text = await window.TnewsAiSummary.summarizeArticle(article);
+    aiPanelContent.innerHTML = window.TnewsAiSummary.formatSummaryHtml(text);
+    setAiPanelState({ loading: false, content: true, setup: false, error: false });
+  } catch (err) {
+    if (err.code === "API_KEY_REQUIRED") {
+      fillAiSetupFields();
+      setAiPanelState({ loading: false, content: false, setup: true, error: false });
+      return;
+    }
+    const msg =
+      err.message?.includes("401") || /invalid.*api.*key/i.test(err.message || "")
+        ? "مفتاح API غير صالح — راجع الإعدادات أدناه"
+        : err.message || "تعذّر التحليل — تحقق من الإنترنت";
+    fillAiSetupFields();
+    setAiPanelState({
+      loading: false,
+      content: false,
+      setup: true,
+      error: msg,
+    });
+  }
+}
+
+async function analyzeSelectedArticle(index) {
+  const article = articles[index];
+  if (!article || !window.TnewsAiSummary) return;
+  openAiPanel(article);
 }
 
 function renderNewsList() {
@@ -178,7 +269,7 @@ function renderNewsList() {
   newsListEl.innerHTML = articles
     .map(
       (article, index) => `
-    <article class="news-card" data-index="${index}">
+    <article class="news-card${selectedIndex === index ? " selected" : ""}" data-index="${index}">
       <div class="news-card-head">
         <h2 class="news-card-title">${escapeHtml(article.translatedTitle || article.title)}</h2>
         <span class="news-card-time">${escapeHtml(formatTime(article.pubDate) || "—")}</span>
@@ -191,16 +282,41 @@ function renderNewsList() {
         </div>
         <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة كصورة">↗</button>
       </div>
-      <p class="news-card-hint">اضغط مرتين لفتح المصدر · ↗ للمشاركة على إنستغرام/فيسبوك</p>
+      <div class="news-card-actions">
+        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ تحليل وتلخيص بالذكاء الاصطناعي</button>
+        <button type="button" class="ai-open-link-btn" data-open-index="${index}">فتح المقال في المصدر</button>
+      </div>
+      <p class="news-card-hint">اضغط مرة لتحديد الخبر · ✨ للتلخيص في نافذة منفصلة</p>
     </article>`,
     )
     .join("");
 
   newsListEl.querySelectorAll(".news-card").forEach((card) => {
     card.addEventListener("click", (event) => {
-      if (event.target.closest(".share-article-btn")) return;
-      const article = articles[Number(card.dataset.index)];
-      handleCardTap(card, article);
+      if (
+        event.target.closest(".share-article-btn") ||
+        event.target.closest(".news-card-actions") ||
+        event.target.closest(".ai-analyze-btn") ||
+        event.target.closest(".ai-open-link-btn")
+      ) {
+        return;
+      }
+      selectArticle(Number(card.dataset.index));
+    });
+  });
+
+  newsListEl.querySelectorAll(".ai-analyze-btn").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      analyzeSelectedArticle(Number(btn.dataset.analyzeIndex));
+    });
+  });
+
+  newsListEl.querySelectorAll(".ai-open-link-btn").forEach((btn) => {
+    btn.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const article = articles[Number(btn.dataset.openIndex)];
+      if (article?.link) window.tnewsWidget.openLink(article.link);
     });
   });
 
@@ -228,6 +344,7 @@ function applyPayload(payload) {
   }
 
   articles = payload.articles;
+  selectedIndex = null;
   lastFetchedAt = payload.fetchedAt || null;
   updateStatusLine();
   renderNewsList();
@@ -284,6 +401,28 @@ shareBtn.addEventListener("click", async (event) => {
 notifyBtn?.addEventListener("click", async (event) => {
   event.stopPropagation();
   await toggleNotifications();
+});
+
+aiPanelClose?.addEventListener("click", closeAiPanel);
+aiPanelBackdrop?.addEventListener("click", closeAiPanel);
+
+aiOpenSourceBtn?.addEventListener("click", () => {
+  if (aiPanelArticle?.link) window.tnewsWidget.openLink(aiPanelArticle.link);
+});
+
+aiSaveKeyBtn?.addEventListener("click", async () => {
+  if (!window.TnewsAiSummary) return;
+  const apiKey = aiApiKeyInput?.value?.trim() || "";
+  if (!apiKey) {
+    setAiPanelState({ loading: false, content: false, setup: true, error: "أدخل مفتاح API" });
+    return;
+  }
+  window.TnewsAiSummary.saveConfig({
+    apiKey,
+    baseUrl: aiApiBaseInput?.value?.trim() || window.TnewsAiSummary.defaults.baseUrl,
+    model: aiApiModelInput?.value?.trim() || window.TnewsAiSummary.defaults.model,
+  });
+  if (aiPanelArticle) await runAiSummary(aiPanelArticle);
 });
 
 (async function init() {
