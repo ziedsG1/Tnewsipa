@@ -23,10 +23,14 @@ jobs:
         run: npm ci
 
       - name: Inject AI API key
-        if: ${{ secrets.OPENAI_API_KEY != '' }}
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        run: npm run ai:config
+        run: |
+          if [ -n "$OPENAI_API_KEY" ]; then
+            npm run ai:config
+          else
+            echo "OPENAI_API_KEY secret not set — AI summary disabled in this build"
+          fi
 
       - name: Sync Capacitor iOS
         run: npx cap sync ios
