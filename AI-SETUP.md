@@ -1,6 +1,16 @@
-# AI summary — API key (developer only)
+# Article summary
 
-Users **do not** enter a key in the app. You configure it once before building.
+## Default: free local summary (no API, no quota)
+
+The app uses **TnewsLocalSummary** — loads the article page (or RSS text), picks the most important sentences, and formats a short Arabic summary. **No OpenAI key required.** Never hits API quotas.
+
+Users tap **✨ تلخيص المقال** — works with internet only.
+
+---
+
+## Optional: cloud AI (OpenAI / Groq)
+
+Only if you want higher-quality wording. Users **do not** enter a key in the app. You configure it once before building.
 
 ## Option A — Local file (easiest)
 
@@ -45,3 +55,16 @@ The key is embedded in the app binary. Anyone who extracts the IPA could find it
 ## Billing
 
 OpenAI requires credits on your account. Summaries use `gpt-4o-mini` (low cost per article).
+
+### “You exceeded your current quota” (without using the app)
+
+This usually means **no paid credits**, not that you used the app many times:
+
+1. Open [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing)
+2. Add a **payment method** and **prepaid credits** (e.g. $5)
+3. Check [Usage](https://platform.openai.com/usage) — if you see usage you did not make, your key was leaked (you posted it in chat earlier). **Revoke** that key and create a new one.
+4. Update `www/config.ai.js` and GitHub secret `OPENAI_API_KEY`, then rebuild the IPA.
+
+**Free alternative:** [Groq](https://console.groq.com) — create a key, then in `config.ai.js` set:
+- `baseUrl`: `https://api.groq.com/openai/v1/chat/completions`
+- `model`: `llama-3.3-70b-versatile`

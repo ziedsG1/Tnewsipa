@@ -190,16 +190,7 @@ function openAiPanel(article) {
   aiPanelMeta.textContent = `${displaySource(article)} · ${formatTime(article.pubDate) || "—"}`;
   aiOpenSourceBtn.hidden = !article.link;
 
-  if (!window.TnewsAiSummary?.hasApiKey()) {
-    setAiPanelState({
-      loading: false,
-      content: false,
-      error: "ميزة التلخيص غير مفعّلة في هذا الإصدار.",
-    });
-    return;
-  }
-
-  runAiSummary(article);
+  runArticleSummary(article);
 }
 
 function closeAiPanel() {
@@ -211,37 +202,53 @@ function closeAiPanel() {
   setAiPanelState({ loading: false, content: false, error: false });
 }
 
-async function runAiSummary(article) {
-  aiPanelLoading.textContent = "جاري تحميل المقال وتحليله…";
+function formatSummaryToHtml(text) {
+  if (window.TnewsAiSummary?.formatSummaryHtml) {
+    return window.TnewsAiSummary.formatSummaryHtml(text);
+  }
+  if (window.TnewsLocalSummary?.formatSummaryHtml) {
+    return window.TnewsLocalSummary.formatSummaryHtml(text);
+  }
+  return text;
+}
+
+async function runArticleSummary(article) {
+  aiPanelLoading.textContent = "جاري تحميل المقال وإعداد الملخص…";
   setAiPanelState({ loading: true, content: false, error: false });
+
+  const onStatus = (msg) => {
+    aiPanelLoading.textContent = msg;
+  };
+
+  const useCloudAi = window.TnewsAiSummary?.hasApiKey?.();
+
   try {
-    const text = await window.TnewsAiSummary.summarizeArticle(article, {
-      onStatus: (msg) => {
-        aiPanelLoading.textContent = msg;
-      },
-    });
-    aiPanelContent.innerHTML = window.TnewsAiSummary.formatSummaryHtml(text);
+    let text;
+    if (useCloudAi) {
+      try {
+        text = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
+      } catch (cloudErr) {
+        onStatus("تعذّر الذكاء السحابي — ملخص تلقائي محلي…");
+        text = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
+      }
+    } else {
+      text = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
+    }
+
+    aiPanelContent.innerHTML = formatSummaryToHtml(text);
     setAiPanelState({ loading: false, content: true, error: false });
   } catch (err) {
-    if (err.code === "AI_NOT_CONFIGURED") {
-      setAiPanelState({
-        loading: false,
-        content: false,
-        error: "ميزة التلخيص غير مفعّلة في هذا الإصدار.",
-      });
-      return;
-    }
-    const msg =
-      err.message?.includes("401") || /invalid.*api.*key/i.test(err.message || "")
-        ? "خطأ في خدمة التلخيص — راجع إعداد المفتاح عند البناء"
-        : err.message || "تعذّر التحليل — تحقق من الإنترنت";
-    setAiPanelState({ loading: false, content: false, error: msg });
+    setAiPanelState({
+      loading: false,
+      content: false,
+      error: err.message || "تعذّر إعداد الملخص — تحقق من الإنترنت",
+    });
   }
 }
 
 async function analyzeSelectedArticle(index) {
   const article = articles[index];
-  if (!article || !window.TnewsAiSummary) return;
+  if (!article || !window.TnewsLocalSummary) return;
   openAiPanel(article);
 }
 
@@ -274,10 +281,10 @@ function renderNewsList() {
         <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة كصورة">↗</button>
       </div>
       <div class="news-card-actions">
-        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ تحليل وتلخيص بالذكاء الاصطناعي</button>
+        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ تلخيص المقال</button>
         <button type="button" class="ai-open-link-btn" data-open-index="${index}">فتح المقال في المصدر</button>
       </div>
-      <p class="news-card-hint">اضغط مرة لتحديد الخبر · ✨ للتلخيص في نافذة منفصلة</p>
+      <p class="news-card-hint">اضغط مرة لتحديد الخبر · ✨ ملخص مجاني (بدون API)</p>
     </article>`,
     )
     .join("");

@@ -195,6 +195,23 @@ ${bodySection}`;
     throw new Error("لم يصل ملخص من خدمة الذكاء الاصطناعي");
   }
 
+  function formatApiError(message) {
+    const m = String(message || "");
+    if (/exceeded your current quota|insufficient_quota|billing/i.test(m)) {
+      return (
+        "حساب OpenAI بدون رصيد أو بدون بطاقة دفع مفعّلة — ليس بالضرورة أنك استخدمت التطبيق. " +
+        "أضف رصيداً على platform.openai.com (Billing) أو أنشئ مفتاحاً جديداً إن سُرّب المفتاح القديم."
+      );
+    }
+    if (/invalid.*api.*key|incorrect api key|401/i.test(m)) {
+      return "مفتاح API غير صالح أو ملغى — أنشئ مفتاحاً جديداً على OpenAI وحدّث الإعداد.";
+    }
+    if (/rate limit|429/i.test(m)) {
+      return "طلبات كثيرة جداً — انتظر دقيقة وحاول مرة أخرى.";
+    }
+    return m || "تعذّر التحليل — تحقق من الإنترنت";
+  }
+
   async function summarizeArticle(article, options) {
     const onStatus = options?.onStatus;
     const config = getBakedConfig();
@@ -252,6 +269,7 @@ ${bodySection}`;
     hasApiKey,
     summarizeArticle,
     formatSummaryHtml,
+    formatApiError,
     defaults: DEFAULTS,
   };
 })();
