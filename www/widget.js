@@ -23,13 +23,8 @@ const aiPanelTitle = document.getElementById("ai-panel-title");
 const aiPanelMeta = document.getElementById("ai-panel-meta");
 const aiPanelLoading = document.getElementById("ai-panel-loading");
 const aiPanelContent = document.getElementById("ai-panel-content");
-const aiPanelSetup = document.getElementById("ai-panel-setup");
 const aiPanelError = document.getElementById("ai-panel-error");
 const aiOpenSourceBtn = document.getElementById("ai-open-source");
-const aiApiKeyInput = document.getElementById("ai-api-key");
-const aiApiBaseInput = document.getElementById("ai-api-base");
-const aiApiModelInput = document.getElementById("ai-api-model");
-const aiSaveKeyBtn = document.getElementById("ai-save-key");
 
 function formatTime(pubDate) {
   if (!pubDate) return "";
@@ -177,18 +172,9 @@ function selectArticle(index) {
   }
 }
 
-function fillAiSetupFields() {
-  if (!window.TnewsAiSummary) return;
-  const cfg = window.TnewsAiSummary.getConfig();
-  if (aiApiKeyInput) aiApiKeyInput.value = cfg.apiKey || "";
-  if (aiApiBaseInput) aiApiBaseInput.value = cfg.baseUrl || window.TnewsAiSummary.defaults.baseUrl;
-  if (aiApiModelInput) aiApiModelInput.value = cfg.model || window.TnewsAiSummary.defaults.model;
-}
-
-function setAiPanelState({ loading, content, setup, error }) {
+function setAiPanelState({ loading, content, error }) {
   aiPanelLoading.hidden = !loading;
   aiPanelContent.hidden = !content;
-  aiPanelSetup.hidden = !setup;
   aiPanelError.hidden = !error;
   if (error) aiPanelError.textContent = error;
 }
@@ -205,8 +191,11 @@ function openAiPanel(article) {
   aiOpenSourceBtn.hidden = !article.link;
 
   if (!window.TnewsAiSummary?.hasApiKey()) {
-    fillAiSetupFields();
-    setAiPanelState({ loading: false, content: false, setup: true, error: false });
+    setAiPanelState({
+      loading: false,
+      content: false,
+      error: "ميزة التلخيص غير مفعّلة في هذا الإصدار.",
+    });
     return;
   }
 
@@ -219,32 +208,34 @@ function closeAiPanel() {
   document.body.style.overflow = "";
   aiPanelArticle = null;
   aiPanelContent.innerHTML = "";
-  setAiPanelState({ loading: false, content: false, setup: false, error: false });
+  setAiPanelState({ loading: false, content: false, error: false });
 }
 
 async function runAiSummary(article) {
-  setAiPanelState({ loading: true, content: false, setup: false, error: false });
+  aiPanelLoading.textContent = "جاري تحميل المقال وتحليله…";
+  setAiPanelState({ loading: true, content: false, error: false });
   try {
-    const text = await window.TnewsAiSummary.summarizeArticle(article);
+    const text = await window.TnewsAiSummary.summarizeArticle(article, {
+      onStatus: (msg) => {
+        aiPanelLoading.textContent = msg;
+      },
+    });
     aiPanelContent.innerHTML = window.TnewsAiSummary.formatSummaryHtml(text);
-    setAiPanelState({ loading: false, content: true, setup: false, error: false });
+    setAiPanelState({ loading: false, content: true, error: false });
   } catch (err) {
-    if (err.code === "API_KEY_REQUIRED") {
-      fillAiSetupFields();
-      setAiPanelState({ loading: false, content: false, setup: true, error: false });
+    if (err.code === "AI_NOT_CONFIGURED") {
+      setAiPanelState({
+        loading: false,
+        content: false,
+        error: "ميزة التلخيص غير مفعّلة في هذا الإصدار.",
+      });
       return;
     }
     const msg =
       err.message?.includes("401") || /invalid.*api.*key/i.test(err.message || "")
-        ? "مفتاح API غير صالح — راجع الإعدادات أدناه"
+        ? "خطأ في خدمة التلخيص — راجع إعداد المفتاح عند البناء"
         : err.message || "تعذّر التحليل — تحقق من الإنترنت";
-    fillAiSetupFields();
-    setAiPanelState({
-      loading: false,
-      content: false,
-      setup: true,
-      error: msg,
-    });
+    setAiPanelState({ loading: false, content: false, error: msg });
   }
 }
 
@@ -408,21 +399,6 @@ aiPanelBackdrop?.addEventListener("click", closeAiPanel);
 
 aiOpenSourceBtn?.addEventListener("click", () => {
   if (aiPanelArticle?.link) window.tnewsWidget.openLink(aiPanelArticle.link);
-});
-
-aiSaveKeyBtn?.addEventListener("click", async () => {
-  if (!window.TnewsAiSummary) return;
-  const apiKey = aiApiKeyInput?.value?.trim() || "";
-  if (!apiKey) {
-    setAiPanelState({ loading: false, content: false, setup: true, error: "أدخل مفتاح API" });
-    return;
-  }
-  window.TnewsAiSummary.saveConfig({
-    apiKey,
-    baseUrl: aiApiBaseInput?.value?.trim() || window.TnewsAiSummary.defaults.baseUrl,
-    model: aiApiModelInput?.value?.trim() || window.TnewsAiSummary.defaults.model,
-  });
-  if (aiPanelArticle) await runAiSummary(aiPanelArticle);
 });
 
 (async function init() {

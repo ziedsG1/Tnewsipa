@@ -444,47 +444,12 @@ body {
   color: var(--text);
 }
 
-.ai-panel-setup {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  font-size: 14px;
-  color: var(--summary);
-}
-
-.ai-panel-setup p {
-  margin: 0 0 4px;
-}
-
-.ai-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.ai-field input {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 14px;
-  background: var(--card);
-  color: var(--text);
-}
-
-.ai-primary-btn,
 .ai-secondary-btn {
   border: none;
   border-radius: 12px;
   padding: 12px 16px;
   font-size: 15px;
   font-weight: 600;
-}
-
-.ai-primary-btn {
-  color: #fff;
-  background: var(--accent);
 }
 
 .ai-secondary-btn {

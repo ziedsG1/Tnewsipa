@@ -14,6 +14,7 @@ Arabic RTL news app for Tunisia, ported from the Windows **Tnews Widget** Electr
 | **[DOCUMENTATION.md](./DOCUMENTATION.md)** | Full project docs: architecture, APIs, feeds, iOS widget, build, troubleshooting |
 | **[docs/Tnews-Documentation.pdf](./docs/Tnews-Documentation.pdf)** | Same documentation as PDF |
 | **[GITHUB-SETUP.md](./GITHUB-SETUP.md)** | GitHub Actions + download IPA + Sideloadly install (Windows-friendly) |
+| **[AI-SETUP.md](./AI-SETUP.md)** | Embed your OpenAI key (users never enter it) |
 
 ---
 

@@ -50,24 +50,8 @@
           </div>
         </header>
         <div class="ai-panel-body" id="ai-panel-body">
-          <p class="ai-panel-loading" id="ai-panel-loading">جاري التحليل بالذكاء الاصطناعي…</p>
+          <p class="ai-panel-loading" id="ai-panel-loading">جاري تحميل المقال وتحليله…</p>
           <div class="ai-panel-content" id="ai-panel-content" hidden></div>
-          <div class="ai-panel-setup" id="ai-panel-setup" hidden>
-            <p>أدخل مفتاح OpenAI (أو خدمة متوافقة) لتفعيل التلخيص:</p>
-            <label class="ai-field">
-              <span>مفتاح API</span>
-              <input type="password" id="ai-api-key" autocomplete="off" placeholder="sk-…" />
-            </label>
-            <label class="ai-field">
-              <span>رابط API (اختياري)</span>
-              <input type="url" id="ai-api-base" placeholder="https://api.openai.com/v1/chat/completions" />
-            </label>
-            <label class="ai-field">
-              <span>النموذج</span>
-              <input type="text" id="ai-api-model" placeholder="gpt-4o-mini" />
-            </label>
-            <button type="button" class="ai-primary-btn" id="ai-save-key">حفظ ومتابعة</button>
-          </div>
           <p class="ai-panel-error" id="ai-panel-error" hidden></p>
         </div>
         <footer class="ai-panel-footer">
@@ -79,6 +63,8 @@
     <script src="lib/newsFetcher.js"></script>
     <script src="lib/weather.js"></script>
     <script src="lib/shareCard.js"></script>
+    <script src="config.ai.stub.js"></script>
+    <script src="config.ai.js"></script>
     <script src="lib/aiSummary.js"></script>
     <script src="lib/notifications.js"></script>
     <script src="app.js"></script>

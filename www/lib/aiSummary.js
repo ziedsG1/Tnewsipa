@@ -1,42 +1,127 @@
 (function () {
-  const STORAGE_KEY = "tnews-ai-config";
-
   const DEFAULTS = {
     baseUrl: "https://api.openai.com/v1/chat/completions",
     model: "gpt-4o-mini",
+  };
+
+  const ARTICLE_TIMEOUT_MS = 18000;
+  const ARTICLE_MAX_CHARS = 14000;
+  const REQUEST_HEADERS = {
+    Accept: "text/html,application/xhtml+xml,*/*",
+    "User-Agent":
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
   };
 
   function isNative() {
     return Boolean(window.Capacitor?.isNativePlatform?.());
   }
 
-  function getConfig() {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      const saved = raw ? JSON.parse(raw) : {};
-      return {
-        apiKey: (saved.apiKey || "").trim(),
-        baseUrl: (saved.baseUrl || DEFAULTS.baseUrl).trim(),
-        model: (saved.model || DEFAULTS.model).trim(),
-      };
-    } catch {
-      return { apiKey: "", baseUrl: DEFAULTS.baseUrl, model: DEFAULTS.model };
-    }
+  function getBakedConfig() {
+    const cfg = window.TNEWS_AI_CONFIG;
+    if (!cfg || typeof cfg !== "object") return null;
+    const apiKey = String(cfg.apiKey || "").trim();
+    if (!apiKey || apiKey.includes("PASTE_YOUR")) return null;
+    return {
+      apiKey,
+      baseUrl: String(cfg.baseUrl || DEFAULTS.baseUrl).trim(),
+      model: String(cfg.model || DEFAULTS.model).trim(),
+    };
   }
 
-  function saveConfig(partial) {
-    const next = { ...getConfig(), ...partial };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-    return next;
+  function getConfig() {
+    return getBakedConfig() || { apiKey: "", baseUrl: DEFAULTS.baseUrl, model: DEFAULTS.model };
   }
 
   function hasApiKey() {
-    return Boolean(getConfig().apiKey);
+    return Boolean(getBakedConfig()?.apiKey);
+  }
+
+  function stripHtml(html) {
+    return String(html || "")
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function shorten(text, max) {
+    if (text.length <= max) return text;
+    return `${text.slice(0, max - 1).trim()}…`;
+  }
+
+  async function httpGetText(url) {
+    if (isNative()) {
+      const http = window.Capacitor?.Plugins?.CapacitorHttp;
+      if (http?.get) {
+        const res = await http.get({
+          url,
+          headers: REQUEST_HEADERS,
+          connectTimeout: ARTICLE_TIMEOUT_MS,
+          readTimeout: ARTICLE_TIMEOUT_MS,
+          responseType: "text",
+        });
+        if (res.status >= 200 && res.status < 300) {
+          return typeof res.data === "string" ? res.data : String(res.data ?? "");
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+    }
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), ARTICLE_TIMEOUT_MS);
+    try {
+      const res = await fetch(url, { signal: controller.signal, headers: REQUEST_HEADERS });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.text();
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  function extractArticleText(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    if (doc.querySelector("parsererror")) return "";
+
+    const selectors = [
+      "article",
+      "main",
+      "[role='main']",
+      ".post-content",
+      ".entry-content",
+      ".article-content",
+      ".content",
+      "#content",
+      "body",
+    ];
+
+    for (const selector of selectors) {
+      const el = doc.querySelector(selector);
+      if (!el) continue;
+      const text = stripHtml(el.innerHTML);
+      if (text.length >= 280) return shorten(text, ARTICLE_MAX_CHARS);
+    }
+
+    return shorten(stripHtml(doc.body?.innerHTML || html), ARTICLE_MAX_CHARS);
+  }
+
+  async function fetchFullArticleText(url, onStatus) {
+    if (!url || !/^https?:\/\//i.test(url)) return { text: "", source: "rss" };
+
+    onStatus?.("جاري تحميل نص المقال…");
+    try {
+      const html = await httpGetText(url);
+      const text = extractArticleText(html);
+      if (text.length >= 200) {
+        return { text, source: "full" };
+      }
+    } catch {
+      /* fall back to RSS excerpt */
+    }
+    return { text: "", source: "rss" };
   }
 
   async function httpPostJson(url, headers, body) {
-    const payload = JSON.stringify(body);
-
     if (isNative()) {
       const http = window.Capacitor?.Plugins?.CapacitorHttp;
       if (http?.post) {
@@ -62,7 +147,7 @@
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json", ...headers },
-      body: payload,
+      body: JSON.stringify(body),
     });
 
     const data = await res.json().catch(() => ({}));
@@ -72,12 +157,17 @@
     return data;
   }
 
-  function buildPrompt(article) {
+  function buildPrompt(article, articleBody, bodySource) {
     const title = article.translatedTitle || article.title || "";
     const summary = article.summary || "";
     const source = article.sourceLabel || "";
     const topic = article.topic || "";
     const date = article.pubDate || "";
+
+    const bodySection =
+      bodySource === "full" && articleBody
+        ? `نص المقال (من صفحة المصدر):\n${articleBody}`
+        : `مقتطف RSS (تعذّر تحميل الصفحة كاملة):\n${summary || articleBody || "(لا يوجد نص إضافي — اعتمد على العنوان)"}`;
 
     return `أنت محلل أخبار تونسي. لخّص الخبر التالي بالعربية الفصحى الواضحة.
 
@@ -87,7 +177,7 @@
 3) **السياق والأهمية** (جملة أو جملتان)
 4) **ما يجب متابعته** (نقطة واحدة إن وُجدت)
 
-لا تخترع معلومات غير موجودة في النص. إن كان النص قصيراً، قل ذلك باختصار.
+لا تخترع معلومات غير موجودة في النص.
 
 ---
 العنوان: ${title}
@@ -96,8 +186,7 @@
 التاريخ: ${date}
 الرابط: ${article.link || ""}
 
-المقتطف من الخبر:
-${summary || "(لا يوجد مقتطف — اعتمد على العنوان فقط)"}`;
+${bodySection}`;
   }
 
   function extractAssistantText(data) {
@@ -106,13 +195,21 @@ ${summary || "(لا يوجد مقتطف — اعتمد على العنوان ف�
     throw new Error("لم يصل ملخص من خدمة الذكاء الاصطناعي");
   }
 
-  async function summarizeArticle(article) {
-    const config = getConfig();
-    if (!config.apiKey) {
-      const err = new Error("API_KEY_REQUIRED");
-      err.code = "API_KEY_REQUIRED";
+  async function summarizeArticle(article, options) {
+    const onStatus = options?.onStatus;
+    const config = getBakedConfig();
+    if (!config?.apiKey) {
+      const err = new Error("AI_NOT_CONFIGURED");
+      err.code = "AI_NOT_CONFIGURED";
       throw err;
     }
+
+    const { text: articleBody, source: bodySource } = await fetchFullArticleText(
+      article.link,
+      onStatus,
+    );
+
+    onStatus?.("جاري التحليل بالذكاء الاصطناعي…");
 
     const url = config.baseUrl.includes("/chat/completions")
       ? config.baseUrl
@@ -124,14 +221,14 @@ ${summary || "(لا يوجد مقتطف — اعتمد على العنوان ف�
       {
         model: config.model,
         temperature: 0.35,
-        max_tokens: 700,
+        max_tokens: 800,
         messages: [
           {
             role: "system",
             content:
               "أجب بالعربية فقط. كن موجزاً ودقيقاً. استخدم عناوين فرعية واضحة كما طُلب في التعليمات.",
           },
-          { role: "user", content: buildPrompt(article) },
+          { role: "user", content: buildPrompt(article, articleBody, bodySource) },
         ],
       },
     );
@@ -152,7 +249,6 @@ ${summary || "(لا يوجد مقتطف — اعتمد على العنوان ف�
 
   window.TnewsAiSummary = {
     getConfig,
-    saveConfig,
     hasApiKey,
     summarizeArticle,
     formatSummaryHtml,
