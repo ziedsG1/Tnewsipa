@@ -23,6 +23,13 @@
         "article .text",
         ".article-body",
       ],
+      authorSelectors: [
+        ".td-post-author-name",
+        ".author-name",
+        ".post-author-name",
+        "[rel='author']",
+        ".entry-author",
+      ],
       minFullChars: 180,
     },
     {
@@ -216,6 +223,36 @@
     return s;
   }
 
+  const OUTLET_NAME_RE =
+    /^(mosaique\s*fm|موزاييك|nawaat|نواة|tap\b|shems\s*fm|شمس|diwan\s*fm|ديوان|webdo|business\s*news|la\s*presse|tunisie\s*radio|radio\s+|\.tn\b|fm\b)/i;
+
+  function isOutletOrSourceName(name, article) {
+    const n = String(name || "").trim();
+    if (!n) return true;
+
+    const lower = n.toLowerCase();
+    if (OUTLET_NAME_RE.test(lower)) return true;
+    if (/\bfm\b/i.test(n) && n.length < 28) return true;
+
+    const src = String(article?.sourceLabel || "").toLowerCase();
+    const srcId = String(article?.sourceId || "").toLowerCase();
+    if (src) {
+      const shortSrc = src.split("—")[0].split("-")[0].trim();
+      if (shortSrc.length >= 3 && lower.includes(shortSrc)) return true;
+    }
+    if (srcId && lower.replace(/\s/g, "").includes(srcId.replace(/-/g, ""))) return true;
+
+    return false;
+  }
+
+  function pickAuthor(pageAuthor, rssAuthor, article) {
+    for (const candidate of [pageAuthor, rssAuthor]) {
+      const n = normalizeAuthorName(candidate);
+      if (n && !isOutletOrSourceName(n, article)) return n;
+    }
+    return "";
+  }
+
   function authorFromJsonLd(doc) {
     const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
     for (const script of scripts) {
@@ -230,12 +267,14 @@
           const author = item.author;
           if (typeof author === "string") {
             const n = normalizeAuthorName(author);
-            if (n) return n;
+            if (n && !OUTLET_NAME_RE.test(n)) return n;
           }
           if (author && typeof author === "object") {
             const list = Array.isArray(author) ? author : [author];
             for (const a of list) {
-              const n = normalizeAuthorName(a.name || a.url || "");
+              const type = String(a["@type"] || "").toLowerCase();
+              if (type && /organization|newsmedia|website/i.test(type)) continue;
+              const n = normalizeAuthorName(a.name || "");
               if (n) return n;
             }
           }
@@ -247,7 +286,17 @@
     return "";
   }
 
-  function extractAuthor(doc) {
+  function extractAuthor(doc, pageUrl) {
+    const handler = siteHandlerForUrl(pageUrl);
+    if (handler?.authorSelectors) {
+      for (const sel of handler.authorSelectors) {
+        const el = doc.querySelector(sel);
+        if (!el) continue;
+        const n = normalizeAuthorName(el.textContent || "");
+        if (n) return n;
+      }
+    }
+
     const jsonLd = authorFromJsonLd(doc);
     if (jsonLd) return jsonLd;
 
@@ -283,10 +332,10 @@
     return "";
   }
 
-  function extractAuthorFromHtml(html) {
+  function extractAuthorFromHtml(html, pageUrl) {
     const doc = new DOMParser().parseFromString(html, "text/html");
     if (doc.querySelector("parsererror")) return "";
-    return extractAuthor(doc);
+    return extractAuthor(doc, pageUrl);
   }
 
   function scoreBlock(text, minChars) {
@@ -373,7 +422,7 @@
       return {
         locale: feedLocale,
         sourceLang,
-        author: rssAuthor,
+        author: pickAuthor("", rssAuthor, article),
         ...extra,
       };
     }
@@ -392,8 +441,8 @@
 
     try {
       const html = await httpGetText(link);
-      const pageAuthor = extractAuthorFromHtml(html);
-      const author = pageAuthor || rssAuthor;
+      const pageAuthor = extractAuthorFromHtml(html, link);
+      const author = pickAuthor(pageAuthor, rssAuthor, article);
       const pageText = extractArticleText(html, link);
 
       if (pageText.length >= minFull) {

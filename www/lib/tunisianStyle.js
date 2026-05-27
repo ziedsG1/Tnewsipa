@@ -8,6 +8,7 @@
     source: "منين جابينا النص",
     empty: "ما لقيناش فقرات كافية — افتح المصدر.",
     fromArticle: "من صفحة المقال",
+    fromArticlePartial: "من المقال (جزء)",
     fromRss: "من RSS",
   };
 
@@ -20,6 +21,7 @@
     source: "المصدر",
     empty: "لم نجد نصاً كافياً في المقال.",
     fromArticle: "من صفحة المقال",
+    fromArticlePartial: "من المقال (جزء)",
     fromRss: "من RSS",
   };
 
@@ -32,7 +34,8 @@
     source: "Source",
     empty: "Not enough text in the article.",
     fromArticle: "From article page",
-    fromRss: "From RSS",
+    fromArticlePartial: "From article (partial)",
+    fromRss: "From RSS feed",
   };
 
   const LOCAL_HEADERS_FR = {
@@ -44,7 +47,8 @@
     source: "Source",
     empty: "Pas assez de texte dans l'article.",
     fromArticle: "Page de l'article",
-    fromRss: "RSS",
+    fromArticlePartial: "Article (partiel)",
+    fromRss: "Flux RSS",
   };
 
   const BASE_SYSTEM = "أنت مساعد أخبار يعتمد فقط على نص المقال.";

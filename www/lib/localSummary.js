@@ -97,18 +97,27 @@
     const fromPage = loaded.fromPage;
     const sourceLangHint = loaded.locale || loaded.sourceLang || "";
 
-    const sourceNote = window.TnewsArticleContent?.sourceLabelArabic
-      ? window.TnewsArticleContent.sourceLabelArabic(loaded)
-      : fromPage
-        ? H.fromArticle
-        : H.fromRss;
+    const sourceNote = (() => {
+      if (loaded.fromPage && loaded.source === "article") return H.fromArticle;
+      if (loaded.fromPage) return H.fromArticlePartial || H.fromArticle;
+      return H.fromRss;
+    })();
 
-    const translateOpts = { sourceLang: sourceLangHint, locale: sourceLangHint };
+    const translateOpts = {
+      sourceLang: sourceLangHint || "ar",
+      locale: sourceLangHint || "ar",
+    };
 
-    if (window.TnewsFreeTranslate?.needsTranslation?.(body, summaryLangId, sourceLangHint)) {
+    const tr = window.TnewsFreeTranslate;
+    const mustTranslate =
+      tr?.needsTranslation?.(body, summaryLangId, "ar") ||
+      tr?.needsTranslation?.(body, summaryLangId, sourceLangHint);
+
+    if (mustTranslate) {
       onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
-      body = await window.TnewsFreeTranslate.translateText(body, summaryLangId, {
+      body = await tr.translateText(body, summaryLangId, {
         ...translateOpts,
+        sourceLang: "ar",
         onProgress: (n, total) => {
           onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
         },
@@ -131,9 +140,23 @@
       return { text: out, fromPage, sourceNote };
     }
 
-    const picked = pickTopSentences(sentences, title, Math.min(5, sentences.length));
-    const bullets = picked.slice(0, 4);
-    const extra = picked[4];
+    const picked = pickTopSentences(sentences, title, Math.min(4, sentences.length));
+    let bullets = picked.slice(0, 4);
+
+    if (tr?.stillArabic?.(bullets.join(" "), summaryLangId)) {
+      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+      const fixed = [];
+      for (let i = 0; i < bullets.length; i++) {
+        try {
+          fixed.push(
+            await tr.translateOne(bullets[i], "ar", tr.targetCode(summaryLangId)),
+          );
+        } catch {
+          fixed.push(bullets[i]);
+        }
+      }
+      bullets = fixed;
+    }
 
     let out = `${H.intro || "📰"}\n\n`;
     out += authorBlock;
@@ -141,7 +164,6 @@
     out += bullets.length
       ? bullets.map((b) => `• ${b}`).join("\n")
       : `• ${title}`;
-    out += `\n\n**${H.context || ""}**\n${extra || bullets[bullets.length - 1] || title}`;
     out += `\n\n**${H.source || ""}**\n${sourceNote}`;
 
     return { text: out, fromPage, sourceNote };
