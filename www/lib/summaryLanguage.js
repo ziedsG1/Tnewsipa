@@ -66,8 +66,8 @@
     return getLang().id;
   }
 
-  function needsGroqForBestResult() {
-    return getLangId() !== "tn";
+  function needsCloudForBestResult() {
+    return true;
   }
 
   function getAnalyzeBtnLabel() {
@@ -80,6 +80,6 @@
     setLang,
     getLangId,
     getAnalyzeBtnLabel,
-    needsGroqForBestResult,
+    needsCloudForBestResult,
   };
 })();

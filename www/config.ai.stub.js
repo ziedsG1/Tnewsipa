@@ -1,7 +1,7 @@
-/** Default — no key. Overridden by config.ai.js when built with GROQ_API_KEY. */
+/** Default — no key. Overridden by config.ai.js when built with GEMINI_API_KEY. */
 window.TNEWS_AI_CONFIG = {
-  provider: "groq",
+  provider: "gemini",
   apiKey: "",
-  baseUrl: "https://api.groq.com/openai/v1/chat/completions",
-  model: "llama-3.3-70b-versatile",
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  model: "gemini-2.0-flash",
 };

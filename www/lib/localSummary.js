@@ -7,10 +7,10 @@
     const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
     return {
       text:
-        `**${langLabel || "Groq"} — مفتاح Groq مطلوب**\n\n` +
-        `الملخص المترجم يعمل فقط مع Groq (مفتاح \`gsk_\`).\n\n` +
-        `أضف \`GROQ_API_KEY\` في GitHub Actions وأعد بناء الـ IPA، أو محلياً:\n` +
-        `\`$env:GROQ_API_KEY = "gsk_..."; npm run ai:config\``,
+        `**${langLabel || "Gemini"} — مفتاح Gemini مطلوب**\n\n` +
+        `الملخص المترجم يعمل مع Google Gemini (مفتاح \`AIza\`).\n\n` +
+        `أضف \`GEMINI_API_KEY\` في GitHub Actions وأعد بناء الـ IPA، أو محلياً:\n` +
+        `\`$env:GEMINI_API_KEY = "AIza_..."; npm run ai:config\``,
       fromPage: loaded.fromPage,
       sourceNote,
     };

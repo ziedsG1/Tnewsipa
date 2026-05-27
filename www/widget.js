@@ -102,7 +102,7 @@ function cardText(article) {
 }
 
 function scheduleCardTranslations() {
-  /* Off by default — headline translation used the API quota and caused Groq waits. */
+  /* Off by default — saves Gemini quota for summaries. */
 }
 
 async function refreshCardTranslations() {
@@ -397,11 +397,11 @@ async function runArticleSummary(article) {
     aiPanelLoading.textContent = msg;
   };
 
-  const useGroq = window.TnewsAiSummary?.hasApiKey?.();
+  const useAi = window.TnewsAiSummary?.hasApiKey?.();
 
   try {
     let result;
-    if (!useGroq) {
+    if (!useAi) {
       result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
     } else {
       try {
@@ -420,8 +420,8 @@ async function runArticleSummary(article) {
     setAiPanelState({ loading: false, content: true, error: false, showRetry: false });
   } catch (err) {
     const message =
-      err.code === "AI_NOT_CONFIGURED" || err.code === "GROQ_NOT_CONFIGURED"
-        ? t("groqConfig")
+      err.code === "AI_NOT_CONFIGURED" || err.code === "GEMINI_NOT_CONFIGURED"
+        ? t("aiConfig")
         : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || t("summaryFailed");
     const showRetry =
       err.code === "RATE_LIMIT" || window.TnewsAiSummary?.isRateLimitError?.(err.message);

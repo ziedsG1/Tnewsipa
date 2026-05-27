@@ -1,9 +1,4 @@
 (function () {
-  const GROQ_DEFAULTS = {
-    baseUrl: "https://api.groq.com/openai/v1/chat/completions",
-    model: "llama-3.3-70b-versatile",
-  };
-
   const GEMINI_DEFAULTS = {
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     model: "gemini-2.0-flash",
@@ -17,6 +12,7 @@
   };
 
   const providerRateLimits = {};
+  const SUMMARY_CACHE_PREFIX = "tnews-summary:";
 
   function isNative() {
     return Boolean(window.Capacitor?.isNativePlatform?.());
@@ -25,80 +21,45 @@
   function normalizeProvider(entry) {
     if (!entry || typeof entry !== "object") return null;
     const apiKey = String(entry.apiKey || "").trim();
-    if (!apiKey || /PASTE_YOUR/i.test(apiKey) || apiKey.startsWith("sk-")) return null;
+    if (!apiKey || /PASTE_YOUR/i.test(apiKey) || apiKey.startsWith("sk-") || apiKey.startsWith("gsk_")) {
+      return null;
+    }
 
     const provider = String(entry.provider || "").toLowerCase();
-    const isGroq = provider === "groq" || apiKey.startsWith("gsk_") || /groq\.com/i.test(entry.baseUrl || "");
     const isGemini =
-      provider === "gemini" || apiKey.startsWith("AIza") || /generativelanguage\.googleapis\.com/i.test(entry.baseUrl || "");
+      provider === "gemini" ||
+      apiKey.startsWith("AIza") ||
+      /generativelanguage\.googleapis\.com/i.test(entry.baseUrl || "");
 
-    if (!isGroq && !isGemini) return null;
+    if (!isGemini) return null;
 
-    const defaults = isGemini ? GEMINI_DEFAULTS : GROQ_DEFAULTS;
     return {
-      id: isGemini ? "gemini" : "groq",
-      provider: isGemini ? "gemini" : "groq",
+      id: "gemini",
+      provider: "gemini",
       apiKey,
-      baseUrl: String(entry.baseUrl || defaults.baseUrl).trim(),
-      model: String(entry.model || defaults.model).trim(),
+      baseUrl: String(entry.baseUrl || GEMINI_DEFAULTS.baseUrl).trim(),
+      model: String(entry.model || GEMINI_DEFAULTS.model).trim(),
     };
-  }
-
-  const GROQ_SKIP_KEY = "tnews-skip-groq-until";
-
-  function getGroqSkipUntil() {
-    try {
-      return Number(sessionStorage.getItem(GROQ_SKIP_KEY) || 0);
-    } catch {
-      return 0;
-    }
-  }
-
-  function skipGroqForMinutes(minutes) {
-    try {
-      sessionStorage.setItem(GROQ_SKIP_KEY, String(Date.now() + minutes * 60 * 1000));
-    } catch {
-      /* ignore */
-    }
   }
 
   function getProviders() {
     const cfg = window.TNEWS_AI_CONFIG;
     if (!cfg || typeof cfg !== "object") return [];
 
-    let list = [];
     if (Array.isArray(cfg.providers)) {
-      list = cfg.providers.map(normalizeProvider).filter(Boolean);
-    } else {
-      const primary = normalizeProvider(cfg);
-      if (primary) list.push(primary);
-      const fb = normalizeProvider(cfg.fallback);
-      if (fb && !list.some((p) => p.id === fb.id)) list.push(fb);
+      return cfg.providers.map(normalizeProvider).filter(Boolean);
     }
 
-    const gemini = list.find((p) => p.id === "gemini");
-    const groq = list.find((p) => p.id === "groq");
-    if (gemini && groq) {
-      list = [gemini, groq];
-    }
-
-    if (Date.now() < getGroqSkipUntil()) {
-      list = list.filter((p) => p.id !== "groq");
-    }
-
+    const list = [];
+    const primary = normalizeProvider(cfg);
+    if (primary) list.push(primary);
+    const fb = normalizeProvider(cfg.fallback);
+    if (fb && !list.some((p) => p.id === fb.id)) list.push(fb);
     return list;
   }
 
   function getConfig() {
-    const p = getProviders()[0];
-    return (
-      p || {
-        apiKey: "",
-        provider: "",
-        baseUrl: GROQ_DEFAULTS.baseUrl,
-        model: GROQ_DEFAULTS.model,
-      }
-    );
+    return getProviders()[0] || { apiKey: "", provider: "gemini", ...GEMINI_DEFAULTS };
   }
 
   function hasApiKey() {
@@ -106,13 +67,8 @@
   }
 
   function getProviderLabel() {
-    const ids = getProviders().map((p) => p.id);
-    if (ids.includes("gemini") && ids.includes("groq")) return "Gemini + Groq";
-    if (ids.includes("gemini")) return "Gemini AI";
-    if (ids.includes("groq")) return "Groq AI";
-    return "AI";
+    return hasApiKey() ? "Gemini AI" : "AI";
   }
-  const SUMMARY_CACHE_PREFIX = "tnews-summary:";
 
   function isRateLimitError(message) {
     return /rate limit|429|tokens per day|too many requests|quota|resource exhausted/i.test(
@@ -121,9 +77,7 @@
   }
 
   function setRateLimited(seconds, providerId) {
-    if (!providerId) return;
-    providerRateLimits[providerId] = Date.now() + seconds * 1000;
-    if (providerId === "groq") skipGroqForMinutes(4);
+    if (providerId) providerRateLimits[providerId] = Date.now() + seconds * 1000;
   }
 
   function isRateLimited(providerId) {
@@ -251,24 +205,21 @@ ${bodySection}`;
   function extractAssistantText(data) {
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content === "string" && content.trim()) return content.trim();
-    throw new Error("لم يصل ملخص من الذكاء الاصطناعي");
+    throw new Error("لم يصل ملخص من Gemini");
   }
 
   function formatApiError(message) {
     const m = String(message || "");
-    const hasGemini = getProviders().some((p) => p.id === "gemini");
     if (/invalid.*api.*key|incorrect api key|401|invalid_api_key/i.test(m)) {
-      return "مفتاح API غير صالح — تحقق من GROQ_API_KEY و GEMINI_API_KEY في GitHub.";
+      return "مفتاح Gemini غير صالح — أنشئ مفتاح AIza على aistudio.google.com وأعد بناء الـ IPA (GEMINI_API_KEY في GitHub).";
     }
     if (isRateLimitError(m)) {
-      return hasGemini
-        ? "تم التبديل تلقائياً — اضغط «إعادة المحاولة» (Gemini أولاً)."
-        : "حد الاستخدام — أضف GEMINI_API_KEY في GitHub (مجاني من aistudio.google.com).";
+      return "حد Gemini — اضغط «إعادة المحاولة» بعد قليل.";
     }
-    if (/model.*decommission|no longer supported/i.test(m)) {
-      return "نموذج AI تغيّر — حدّث التطبيق من GitHub.";
+    if (/model.*decommission|no longer supported|not found/i.test(m)) {
+      return "نموذج Gemini تغيّر — حدّث التطبيق من GitHub.";
     }
-    return m || "تعذّر الاتصال — تحقق من الإنترنت";
+    return m || "تعذّر الاتصال بـ Gemini — تحقق من الإنترنت";
   }
 
   async function callProvider(provider, messages, options) {
@@ -289,7 +240,7 @@ ${bodySection}`;
       );
     } catch (err) {
       if (isRateLimitError(err.message)) {
-        setRateLimited(8, provider.id);
+        setRateLimited(12, provider.id);
         const e = new Error(err.message);
         e.code = "RATE_LIMIT";
         throw e;
@@ -301,8 +252,8 @@ ${bodySection}`;
   async function requestChat(messages, options) {
     const providers = getProviders();
     if (!providers.length) {
-      const err = new Error("GROQ_NOT_CONFIGURED");
-      err.code = "GROQ_NOT_CONFIGURED";
+      const err = new Error("GEMINI_NOT_CONFIGURED");
+      err.code = "GEMINI_NOT_CONFIGURED";
       throw err;
     }
 
@@ -313,7 +264,6 @@ ${bodySection}`;
         return await callProvider(provider, messages, options);
       } catch (err) {
         lastErr = err;
-        if (isRateLimitError(err.message) && providers.length > 1) continue;
         if (providers.length > 1) continue;
         throw err;
       }
@@ -328,8 +278,8 @@ ${bodySection}`;
     const onStatus = options?.onStatus;
     const langId = getLangId();
     if (!hasApiKey()) {
-      const err = new Error("GROQ_NOT_CONFIGURED");
-      err.code = "GROQ_NOT_CONFIGURED";
+      const err = new Error("GEMINI_NOT_CONFIGURED");
+      err.code = "GEMINI_NOT_CONFIGURED";
       throw err;
     }
 
@@ -390,6 +340,6 @@ ${bodySection}`;
     isRateLimited,
     isRateLimitError,
     getRateLimitWaitSec,
-    defaults: GROQ_DEFAULTS,
+    defaults: GEMINI_DEFAULTS,
   };
 })();
