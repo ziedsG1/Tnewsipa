@@ -92,18 +92,18 @@
       ? `نص المقال الكامل (مُستخرج من صفحة الخبر على الموقع — هذا هو المصدر الوحيد للملخص):\n\n${loaded.body}`
       : `تعذّر تحميل صفحة المقال. استخدم فقط هذا النص المحدود:\n${loaded.body || rss || title}`;
 
-    return `أنت محلل أخبار تونسي. لخّص الخبر التالي بالعربية الفصحى الواضحة.
+    const sections =
+      window.TnewsTunisianStyle?.USER_SECTIONS ||
+      "لخّص بالدارجة التونسية بأقسام واضحة.";
+
+    return `فسّر الخبر التالي للقارئ التونسي — **بالدارجة التونسية فقط** (مش فصحى).
 
 قواعد صارمة:
-- اعتمد **فقط** على نص المقال أدناه (من الموقع)، لا على معرفة خارجية.
-- لا تخترع أسماء أو أرقام أو اقتباسات غير موجودة في النص.
-- إن كان النص قصيراً، قل ذلك باختصار.
+- اعتمد **فقط** على نص المقال أدناه من الموقع.
+- لا تخترع أسماء، أرقام، أو اقتباسات.
+- إن النص قصير، قول: "المقال قصير برك، هاذي اللي فيه."
 
-المطلوب في رد واحد منظم:
-1) **الفكرة الرئيسية** (جملتان كحد أقصى)
-2) **أهم النقاط** (3–5 نقاط مختصرة)
-3) **السياق والأهمية** (جملة أو جملتان)
-4) **ما يجب متابعته** (نقطة واحدة إن وُجدت)
+${sections}
 
 ---
 العنوان: ${title}
@@ -153,7 +153,7 @@ ${bodySection}`;
 
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
 
-    onStatus?.("جاري التلخيص من نص المقال…");
+    onStatus?.("قاعدين نحضّرو الشرح بالدارجة…");
 
     const url = config.baseUrl.includes("/chat/completions")
       ? config.baseUrl
@@ -164,13 +164,14 @@ ${bodySection}`;
       { Authorization: `Bearer ${config.apiKey}` },
       {
         model: config.model,
-        temperature: 0.35,
-        max_tokens: 800,
+        temperature: 0.55,
+        max_tokens: 900,
         messages: [
           {
             role: "system",
             content:
-              "أجب بالعربية فقط. كن موجزاً ودقيقاً. استخدم عناوين فرعية واضحة كما طُلب في التعليمات.",
+              window.TnewsTunisianStyle?.SYSTEM_PROMPT ||
+              "أجب بالدارجة التونسية فقط. كن واضحاً وقريب من الناس.",
           },
           { role: "user", content: buildPrompt(article, loaded) },
         ],
@@ -193,6 +194,7 @@ ${bodySection}`;
 
     return escaped
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.+?)_/g, "<em>$1</em>")
       .replace(/\n/g, "<br>");
   }
 

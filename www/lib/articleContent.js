@@ -193,7 +193,7 @@
       };
     }
 
-    onStatus?.("جاري تحميل المقال من المصدر…");
+    onStatus?.("قاعدين نجيبو المقال من الموقع…");
 
     try {
       const html = await httpGetText(link);
@@ -255,9 +255,9 @@
   }
 
   function sourceLabelArabic(result) {
-    if (result.fromPage && result.source === "article") return "من صفحة المقال";
-    if (result.fromPage) return "من صفحة المقال (جزئي)";
-    return "من RSS فقط";
+    if (result.fromPage && result.source === "article") return "من المقال نفسه";
+    if (result.fromPage) return "من المقال (جزء)";
+    return "من RSS برك";
   }
 
   window.TnewsArticleContent = {

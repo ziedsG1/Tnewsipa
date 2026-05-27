@@ -236,7 +236,7 @@ function appendSourceToMeta(sourceNote) {
 }
 
 async function runArticleSummary(article) {
-  aiPanelLoading.textContent = "جاري تحميل المقال من المصدر…";
+  aiPanelLoading.textContent = "قاعدين نجيبو المقال…";
   setAiPanelState({ loading: true, content: false, error: false });
 
   const onStatus = (msg) => {
@@ -251,7 +251,7 @@ async function runArticleSummary(article) {
       try {
         result = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
       } catch (cloudErr) {
-        onStatus("تعذّر Groq — ملخص من نص المقال محلياً…");
+        onStatus("Groq مشى — نعملو ملخص محلي…");
         result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
       }
     } else {
@@ -306,10 +306,10 @@ function renderNewsList() {
         <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة كصورة">↗</button>
       </div>
       <div class="news-card-actions">
-        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ تلخيص المقال</button>
+        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ فسّرلي بالدارجة</button>
         <button type="button" class="ai-open-link-btn" data-open-index="${index}">فتح المقال في المصدر</button>
       </div>
-      <p class="news-card-hint">اضغط مرة لتحديد · ✨ ملخص من نص المقال على الموقع</p>
+      <p class="news-card-hint">اضغط مرة · ✨ شرح كول بالدارجة من المقال</p>
     </article>`,
     )
     .join("");

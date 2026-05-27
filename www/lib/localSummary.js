@@ -1,4 +1,6 @@
 (function () {
+  const H = () => window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
+
   const STOP_WORDS = new Set([
     "في", "من", "إلى", "على", "أن", "ان", "هذا", "هذه", "التي", "الذي", "مع", "عن", "ما", "لا",
     "تم", "قد", "كان", "كانت", "بعد", "قبل", "أو", "او", "كل", "ذلك", "هو", "هي", "وفق", "حسب",
@@ -57,20 +59,22 @@
   }
 
   function buildLocalSummary(loaded) {
+    const headers = H();
     const { title, body, fromPage } = loaded;
     const sentences = splitSentences(body);
     const titleTokens = new Set(tokenize(title));
     const sourceNote = window.TnewsArticleContent?.sourceLabelArabic
       ? window.TnewsArticleContent.sourceLabelArabic(loaded)
       : fromPage
-        ? "من صفحة المقال"
-        : "من RSS";
+        ? headers.fromArticle || "من المقال"
+        : headers.fromRss || "من RSS";
 
     if (!sentences.length) {
       return {
         text:
-          `**الفكرة الرئيسية**\n${title}\n\n` +
-          `**ملاحظة**\nتعذّر استخراج فقرات من المقال.`,
+          `${headers.intro || "📰 الخبر"}\n\n` +
+          `**${headers.lead || "بالخلاصة"}**\n${title}\n\n` +
+          `**ملاحظة**\n${headers.empty || "ما لقيناش نص كافي."}`,
         fromPage,
         sourceNote,
       };
@@ -81,17 +85,20 @@
     const bullets = top.slice(1, 5);
     const extra = top[5];
 
-    let out = `**الفكرة الرئيسية**\n${lead}\n\n**أهم النقاط**\n`;
+    let out = `${headers.intro || "📰 الخبر بالدارجة"}\n\n`;
+    out += `_هاي أهم الفقرات من المقال — مع Groq AI يطلع شرح كامل بالدارجة._\n\n`;
+    out += `**${headers.lead || "شنوة اللي صاير"}**\n${lead}\n\n`;
+    out += `**${headers.points || "أهم الحاجات"}**\n`;
     out += bullets.length ? bullets.map((b) => `• ${b}`).join("\n") : `• ${lead}`;
-    out += `\n\n**السياق**\n${extra || bullets[bullets.length - 1] || lead}`;
-    out += `\n\n**المصدر**\n${sourceNote} — جُمِع الملخص من نص المقال نفسه.`;
+    out += `\n\n**${headers.context || "علاش تهمّ"}**\n${extra || bullets[bullets.length - 1] || lead}`;
+    out += `\n\n**${headers.source || "المصدر"}**\n${sourceNote}`;
 
     return { text: out, fromPage, sourceNote };
   }
 
   async function summarizeArticle(article, options) {
     if (!window.TnewsArticleContent?.loadFromArticlePage) {
-      throw new Error("وحدة تحميل المقال غير متوفرة");
+      throw new Error("وحدة تحميل المقال ما تهيأتش");
     }
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, options?.onStatus);
     return buildLocalSummary(loaded);
@@ -104,6 +111,7 @@
       .replace(/>/g, "&gt;");
     return escaped
       .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+      .replace(/_(.+?)_/g, "<em>$1</em>")
       .replace(/\n/g, "<br>");
   }
 
