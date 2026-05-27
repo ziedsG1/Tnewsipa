@@ -67,6 +67,7 @@
       fromArticle: "من المقال نفسه",
       fromArticlePartial: "من المقال (جزء)",
       fromRss: "من RSS برك",
+      translatingCards: "جاري ترجمة عناوين الأخبار…",
     },
     tn: {
       pageLangAria: "لغة الصفحة",
@@ -126,6 +127,7 @@
       fromArticle: "من المقال",
       fromArticlePartial: "من المقال (شوية)",
       fromRss: "من RSS برك",
+      translatingCards: "قاعدين نترجمو العناوين…",
     },
     en: {
       pageLangAria: "Interface language",
@@ -185,6 +187,7 @@
       fromArticle: "From full article",
       fromArticlePartial: "From article (partial)",
       fromRss: "RSS only",
+      translatingCards: "Translating headlines…",
     },
     fr: {
       pageLangAria: "Langue de l'interface",
@@ -244,6 +247,7 @@
       fromArticle: "Depuis l'article",
       fromArticlePartial: "Article (partiel)",
       fromRss: "RSS seulement",
+      translatingCards: "Traduction des titres…",
     },
   };
 

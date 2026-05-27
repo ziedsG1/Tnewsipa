@@ -165,6 +165,26 @@ ${bodySection}`;
     return m || "تعذّر التحليل — تحقق من الإنترنت";
   }
 
+  async function requestChat(messages) {
+    const config = getBakedConfig();
+    if (!config?.apiKey) throw new Error("AI_NOT_CONFIGURED");
+
+    const url = config.baseUrl.includes("/chat/completions")
+      ? config.baseUrl
+      : config.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
+
+    return httpPostJson(
+      url,
+      { Authorization: `Bearer ${config.apiKey}` },
+      {
+        model: config.model,
+        temperature: 0.2,
+        max_tokens: 1200,
+        messages,
+      },
+    );
+  }
+
   async function summarizeArticle(article, options) {
     const onStatus = options?.onStatus;
     const config = getBakedConfig();
@@ -228,6 +248,7 @@ ${bodySection}`;
   window.TnewsAiSummary = {
     getConfig,
     hasApiKey,
+    requestChat,
     summarizeArticle,
     formatSummaryHtml,
     formatApiError,

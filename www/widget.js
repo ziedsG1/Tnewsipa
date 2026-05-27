@@ -15,6 +15,7 @@ let lastFetchedAt = null;
 let statusTimer = null;
 let selectedIndex = null;
 let aiPanelArticle = null;
+let cardTranslateGeneration = 0;
 
 const aiPanelEl = document.getElementById("ai-panel");
 const aiPanelBackdrop = document.getElementById("ai-panel-backdrop");
@@ -88,6 +89,34 @@ function displaySource(article) {
     return window.TnewsShareCard.sourceLabel(article);
   }
   return article.sourceLabel || "";
+}
+
+function cardText(article) {
+  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
+  if (window.TnewsCardTranslate?.getDisplay) {
+    return window.TnewsCardTranslate.getDisplay(article, uiLang);
+  }
+  return { title: article.title || "", summary: article.summary || "" };
+}
+
+async function refreshCardTranslations() {
+  if (!window.TnewsCardTranslate?.refreshForUiLang || !articles.length) return;
+
+  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
+  const needsWork = articles.some((a) => window.TnewsCardTranslate.needsTranslation(a, uiLang));
+  if (!needsWork) return;
+
+  if (!window.TnewsAiSummary?.hasApiKey?.()) return;
+
+  const gen = ++cardTranslateGeneration;
+  statusEl.textContent = t("translatingCards");
+
+  await window.TnewsCardTranslate.refreshForUiLang(articles, uiLang, () => {
+    if (gen !== cardTranslateGeneration) return;
+    renderNewsList();
+  });
+
+  if (gen === cardTranslateGeneration) updateStatusLine();
 }
 
 function updateNotifyButton() {
@@ -220,6 +249,7 @@ function selectUiLang(id) {
     aiPanelMeta.textContent = buildAiPanelMeta(aiPanelArticle);
   }
   loadWeather().catch(() => {});
+  refreshCardTranslations();
 }
 
 function applyStaticUi() {
@@ -422,14 +452,15 @@ function renderNewsList() {
 
   articleCountEl.textContent = t("articleCount", { n: articles.length });
   newsListEl.innerHTML = articles
-    .map(
-      (article, index) => `
+    .map((article, index) => {
+      const display = cardText(article);
+      return `
     <article class="news-card${selectedIndex === index ? " selected" : ""}" data-index="${index}">
       <div class="news-card-head">
-        <h2 class="news-card-title">${escapeHtml(article.translatedTitle || article.title)}</h2>
+        <h2 class="news-card-title">${escapeHtml(display.title)}</h2>
         <span class="news-card-time">${escapeHtml(formatTime(article.pubDate) || "—")}</span>
       </div>
-      ${article.summary ? `<p class="news-card-summary">${escapeHtml(article.summary)}</p>` : ""}
+      ${display.summary ? `<p class="news-card-summary">${escapeHtml(display.summary)}</p>` : ""}
       <div class="news-card-foot">
         <div class="news-card-meta">
           <span class="topic">${escapeHtml(window.TnewsUi?.topicLabel?.(article.topicKey) || article.topic || t("topicGeneral"))}</span>
@@ -442,8 +473,8 @@ function renderNewsList() {
         <button type="button" class="ai-open-link-btn" data-open-index="${index}">${escapeHtml(t("openSource"))}</button>
       </div>
       <p class="news-card-hint">${escapeHtml(t("cardHint"))}</p>
-    </article>`,
-    )
+    </article>`;
+    })
     .join("");
 
   newsListEl.querySelectorAll(".news-card").forEach((card) => {
@@ -498,11 +529,12 @@ function applyPayload(payload) {
     return;
   }
 
-  articles = payload.articles;
+  articles = payload.articles.map((a) => ({ ...a, uiDisplay: undefined }));
   selectedIndex = null;
   lastFetchedAt = payload.fetchedAt || null;
   updateStatusLine();
   renderNewsList();
+  refreshCardTranslations();
   if (window.tnewsWidget?.syncToHomeScreenWidget) {
     window.tnewsWidget.syncToHomeScreenWidget();
   }
