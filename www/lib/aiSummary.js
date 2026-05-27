@@ -4,6 +4,11 @@
     model: "llama-3.3-70b-versatile",
   };
 
+  const GEMINI_DEFAULTS = {
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    model: "gemini-2.0-flash",
+  };
+
   const LANG_STATUS = {
     tn: "قاعدين نحضّرو الشرح بالدارجة…",
     ar: "جاري إعداد الملخص بالعربية…",
@@ -11,41 +16,54 @@
     fr: "Préparation du résumé en français…",
   };
 
+  const providerRateLimits = {};
+
   function isNative() {
     return Boolean(window.Capacitor?.isNativePlatform?.());
   }
 
-  /** Groq-only: ignores old OpenAI (sk-) keys baked into older builds. */
-  function getBakedConfig() {
-    const cfg = window.TNEWS_AI_CONFIG;
-    if (!cfg || typeof cfg !== "object") return null;
-    const apiKey = String(cfg.apiKey || "").trim();
-    if (!apiKey || /PASTE_YOUR/i.test(apiKey)) return null;
+  function normalizeProvider(entry) {
+    if (!entry || typeof entry !== "object") return null;
+    const apiKey = String(entry.apiKey || "").trim();
+    if (!apiKey || /PASTE_YOUR/i.test(apiKey) || apiKey.startsWith("sk-")) return null;
 
-    const provider = String(cfg.provider || "").toLowerCase();
-    const isGroqKey = apiKey.startsWith("gsk_");
-    const isGroqProvider = provider === "groq";
-    const isGroqUrl = /groq\.com/i.test(String(cfg.baseUrl || ""));
+    const provider = String(entry.provider || "").toLowerCase();
+    const isGroq = provider === "groq" || apiKey.startsWith("gsk_") || /groq\.com/i.test(entry.baseUrl || "");
+    const isGemini =
+      provider === "gemini" || apiKey.startsWith("AIza") || /generativelanguage\.googleapis\.com/i.test(entry.baseUrl || "");
 
-    if (!isGroqKey && !isGroqProvider && !isGroqUrl) {
-      return null;
-    }
+    if (!isGroq && !isGemini) return null;
 
-    if (apiKey.startsWith("sk-")) {
-      return null;
-    }
-
+    const defaults = isGemini ? GEMINI_DEFAULTS : GROQ_DEFAULTS;
     return {
-      provider: "groq",
+      id: isGemini ? "gemini" : "groq",
+      provider: isGemini ? "gemini" : "groq",
       apiKey,
-      baseUrl: String(cfg.baseUrl || GROQ_DEFAULTS.baseUrl).trim(),
-      model: String(cfg.model || GROQ_DEFAULTS.model).trim(),
+      baseUrl: String(entry.baseUrl || defaults.baseUrl).trim(),
+      model: String(entry.model || defaults.model).trim(),
     };
   }
 
+  function getProviders() {
+    const cfg = window.TNEWS_AI_CONFIG;
+    if (!cfg || typeof cfg !== "object") return [];
+
+    if (Array.isArray(cfg.providers)) {
+      return cfg.providers.map(normalizeProvider).filter(Boolean);
+    }
+
+    const list = [];
+    const primary = normalizeProvider(cfg);
+    if (primary) list.push(primary);
+    const fb = normalizeProvider(cfg.fallback);
+    if (fb && !list.some((p) => p.id === fb.id)) list.push(fb);
+    return list;
+  }
+
   function getConfig() {
+    const p = getProviders()[0];
     return (
-      getBakedConfig() || {
+      p || {
         apiKey: "",
         provider: "",
         baseUrl: GROQ_DEFAULTS.baseUrl,
@@ -55,7 +73,15 @@
   }
 
   function hasApiKey() {
-    return Boolean(getBakedConfig()?.apiKey);
+    return getProviders().length > 0;
+  }
+
+  function getProviderLabel() {
+    const ids = getProviders().map((p) => p.id);
+    if (ids.includes("groq") && ids.includes("gemini")) return "Groq + Gemini";
+    if (ids.includes("gemini")) return "Gemini AI";
+    if (ids.includes("groq")) return "Groq AI";
+    return "AI";
   }
 
   let rateLimitedUntil = 0;
@@ -66,14 +92,21 @@
   }
 
   function isRateLimitError(message) {
-    return /rate limit|429|tokens per day|too many requests/i.test(String(message || ""));
+    return /rate limit|429|tokens per day|too many requests|quota|resource exhausted/i.test(
+      String(message || ""),
+    );
   }
 
-  function setRateLimited(seconds) {
-    rateLimitedUntil = Date.now() + seconds * 1000;
+  function setRateLimited(seconds, providerId) {
+    const until = Date.now() + seconds * 1000;
+    rateLimitedUntil = until;
+    if (providerId) providerRateLimits[providerId] = until;
   }
 
-  function isRateLimited() {
+  function isRateLimited(providerId) {
+    if (providerId) {
+      return Date.now() < (providerRateLimits[providerId] || 0);
+    }
     return Date.now() < rateLimitedUntil;
   }
 
@@ -197,57 +230,47 @@ ${bodySection}`;
   function extractAssistantText(data) {
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content === "string" && content.trim()) return content.trim();
-    throw new Error("لم يصل ملخص من Groq");
+    throw new Error("لم يصل ملخص من الذكاء الاصطناعي");
   }
 
   function formatApiError(message) {
     const m = String(message || "");
+    const hasGemini = getProviders().some((p) => p.id === "gemini");
     if (/invalid.*api.*key|incorrect api key|401|invalid_api_key/i.test(m)) {
-      return "مفتاح Groq غير صالح — أنشئ مفتاح gsk_ على console.groq.com وأعد بناء التطبيق (GROQ_API_KEY في GitHub).";
+      return "مفتاح API غير صالح — تحقق من GROQ_API_KEY و GEMINI_API_KEY في GitHub.";
     }
     if (isRateLimitError(m)) {
       const wait = getRateLimitWaitSec();
+      if (hasGemini) {
+        return wait > 0
+          ? `حد الاستخدام — انتظر ${wait} ثانية ثم «إعادة المحاولة» (Groq ثم Gemini).`
+          : "حد الاستخدام — جرّب «إعادة المحاولة» (يستخدم Gemini إن توفر).";
+      }
       return wait > 0
-        ? `حد Groq — انتظر ${wait} ثانية ثم اضغط «إعادة المحاولة».`
-        : "حد Groq — انتظر قليلاً ثم اضغط «إعادة المحاولة».";
+        ? `حد Groq — انتظر ${wait} ثانية. أضف GEMINI_API_KEY في GitHub كاحتياطي مجاني.`
+        : "حد Groq — أضف مفتاح Gemini مجاني من aistudio.google.com في GitHub Secrets.";
     }
     if (/model.*decommission|no longer supported/i.test(m)) {
-      return "نموذج Groq تغيّر — حدّث التطبيق من GitHub.";
+      return "نموذج AI تغيّر — حدّث التطبيق من GitHub.";
     }
-    if (/exceeded your current quota|insufficient_quota|billing|openai/i.test(m)) {
-      return "التطبيق يحتاج مفتاح Groq (gsk_) وليس OpenAI — أضف GROQ_API_KEY في GitHub Actions وأعد بناء الـ IPA.";
-    }
-    return m || "تعذّر الاتصال بـ Groq — تحقق من الإنترنت";
+    return m || "تعذّر الاتصال — تحقق من الإنترنت";
   }
 
-  async function requestChat(messages, options) {
-    const config = getBakedConfig();
-    if (!config?.apiKey) {
-      const err = new Error("GROQ_NOT_CONFIGURED");
-      err.code = "GROQ_NOT_CONFIGURED";
-      throw err;
-    }
+  async function callProvider(provider, messages, options) {
+    const url = provider.baseUrl.includes("/chat/completions")
+      ? provider.baseUrl
+      : provider.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
 
-    if (isRateLimited()) {
-      const err = new Error("rate limit");
-      err.code = "RATE_LIMIT";
-      throw err;
-    }
-
-    const url = config.baseUrl.includes("/chat/completions")
-      ? config.baseUrl
-      : config.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
-
-    const maxRetries = options?.retries ?? 2;
+    const maxRetries = options?.retries ?? 1;
     let lastErr;
 
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
         return await httpPostJson(
           url,
-          { Authorization: `Bearer ${config.apiKey}` },
+          { Authorization: `Bearer ${provider.apiKey}` },
           {
-            model: config.model,
+            model: provider.model,
             temperature: options?.temperature ?? 0.2,
             max_tokens: options?.maxTokens ?? 1200,
             messages,
@@ -256,13 +279,13 @@ ${bodySection}`;
       } catch (err) {
         lastErr = err;
         if (!isRateLimitError(err.message) || attempt >= maxRetries) break;
-        setRateLimited(50);
-        await sleep(1800 * (attempt + 1));
+        setRateLimited(40, provider.id);
+        await sleep(1500 * (attempt + 1));
       }
     }
 
     if (isRateLimitError(lastErr?.message)) {
-      setRateLimited(55);
+      setRateLimited(45, provider.id);
       const err = new Error(lastErr.message);
       err.code = "RATE_LIMIT";
       throw err;
@@ -270,10 +293,36 @@ ${bodySection}`;
     throw lastErr;
   }
 
+  async function requestChat(messages, options) {
+    const providers = getProviders();
+    if (!providers.length) {
+      const err = new Error("GROQ_NOT_CONFIGURED");
+      err.code = "GROQ_NOT_CONFIGURED";
+      throw err;
+    }
+
+    let lastErr;
+    for (const provider of providers) {
+      if (isRateLimited(provider.id)) continue;
+      try {
+        return await callProvider(provider, messages, options);
+      } catch (err) {
+        lastErr = err;
+        if (isRateLimitError(err.message)) continue;
+        if (providers.length > 1) continue;
+        throw err;
+      }
+    }
+
+    const err = new Error(lastErr?.message || "rate limit");
+    err.code = "RATE_LIMIT";
+    throw err;
+  }
+
   async function summarizeArticle(article, options) {
     const onStatus = options?.onStatus;
     const langId = getLangId();
-    if (!getBakedConfig()?.apiKey) {
+    if (!hasApiKey()) {
       const err = new Error("GROQ_NOT_CONFIGURED");
       err.code = "GROQ_NOT_CONFIGURED";
       throw err;
@@ -300,7 +349,7 @@ ${bodySection}`;
         },
         { role: "user", content: buildPrompt(article, loaded) },
       ],
-      { temperature: 0.55, maxTokens: 950, retries: 3 },
+      { temperature: 0.55, maxTokens: 950, retries: 2 },
     );
 
     const sourceNote = window.TnewsArticleContent.sourceLabelArabic(loaded);
@@ -328,6 +377,7 @@ ${bodySection}`;
   window.TnewsAiSummary = {
     getConfig,
     hasApiKey,
+    getProviderLabel,
     requestChat,
     summarizeArticle,
     formatSummaryHtml,

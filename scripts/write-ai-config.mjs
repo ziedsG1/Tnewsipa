@@ -1,5 +1,5 @@
 /**
- * Writes www/config.ai.js from GROQ_API_KEY only (never commit that file).
+ * Writes www/config.ai.js from GROQ_API_KEY and optional GEMINI_API_KEY (never commit).
  */
 import fs from "fs";
 import path from "path";
@@ -14,29 +14,53 @@ const GROQ = {
   model: "llama-3.3-70b-versatile",
 };
 
-const apiKey = (process.env.GROQ_API_KEY || process.argv[2] || "").trim();
+const GEMINI = {
+  baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+  model: "gemini-2.0-flash",
+};
 
-if (!apiKey) {
-  console.error("Set GROQ_API_KEY (gsk_…) — this app uses Groq only.");
+const groqKey = (process.env.GROQ_API_KEY || "").trim();
+const geminiKey = (process.env.GEMINI_API_KEY || "").trim();
+
+if (!groqKey && !geminiKey) {
+  console.error("Set at least one: GROQ_API_KEY (gsk_) and/or GEMINI_API_KEY (from aistudio.google.com)");
   process.exit(1);
 }
 
-if (!apiKey.startsWith("gsk_")) {
-  console.error("Key must be a Groq key (starts with gsk_). Get one at https://console.groq.com");
+if (groqKey && !groqKey.startsWith("gsk_")) {
+  console.error("GROQ_API_KEY must start with gsk_");
   process.exit(1);
 }
 
-const baseUrl = (process.env.AI_API_BASE || GROQ.baseUrl).trim();
-const model = (process.env.AI_API_MODEL || GROQ.model).trim();
+const primary = groqKey
+  ? {
+      provider: "groq",
+      apiKey: groqKey,
+      baseUrl: (process.env.AI_API_BASE || GROQ.baseUrl).trim(),
+      model: (process.env.AI_API_MODEL || GROQ.model).trim(),
+    }
+  : {
+      provider: "gemini",
+      apiKey: geminiKey,
+      baseUrl: (process.env.GEMINI_API_BASE || GEMINI.baseUrl).trim(),
+      model: (process.env.GEMINI_MODEL || GEMINI.model).trim(),
+    };
+
+const fallback =
+  groqKey && geminiKey
+    ? {
+        provider: "gemini",
+        apiKey: geminiKey,
+        baseUrl: (process.env.GEMINI_API_BASE || GEMINI.baseUrl).trim(),
+        model: (process.env.GEMINI_MODEL || GEMINI.model).trim(),
+      }
+    : null;
 
 const content = `/** Auto-generated — do not commit */
-window.TNEWS_AI_CONFIG = {
-  provider: "groq",
-  apiKey: ${JSON.stringify(apiKey)},
-  baseUrl: ${JSON.stringify(baseUrl)},
-  model: ${JSON.stringify(model)},
-};
+window.TNEWS_AI_CONFIG = ${JSON.stringify({ ...primary, fallback }, null, 2)};
 `;
 
 fs.writeFileSync(outPath, content, "utf8");
-console.log(`Wrote ${outPath} (Groq, ${model})`);
+const parts = [primary.provider];
+if (fallback) parts.push("gemini fallback");
+console.log(`Wrote ${outPath} (${parts.join(" + ")})`);

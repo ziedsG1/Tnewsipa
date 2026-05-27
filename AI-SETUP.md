@@ -1,85 +1,41 @@
-# Article summary
+# Article summary (Groq + optional Gemini)
 
-## Default: free local summary (no API, no quota)
+Summaries use **free cloud AI**. Users never enter a key in the app.
 
-The app uses **TnewsLocalSummary** — loads the article page (or RSS text), picks the most important sentences, and formats a short Arabic summary. **No OpenAI key required.** Never hits API quotas.
+## Recommended setup (two free keys)
 
-Users tap **✨ تلخيص المقال** — works with internet only.
+| Provider | Free key | Limits (approx.) | Get key |
+|----------|----------|------------------|---------|
+| **Groq** (primary) | `gsk_…` | Fast; ~30 req/min | [console.groq.com](https://console.groq.com) |
+| **Google Gemini** (fallback) | `AIza…` | ~1500 req/day | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
 
----
+When Groq hits its limit, the app automatically tries **Gemini** if you added `GEMINI_API_KEY`.
 
-## Optional: cloud AI with **Groq** (recommended)
+Other free options (not built in yet): **Cerebras**, **OpenRouter** (`:free` models), **Mistral** free tier.
 
-Free tier, no OpenAI billing. Users **do not** enter a key in the app.
-
-### GitHub Actions (your case)
+## GitHub Actions (IPA build)
 
 1. [Settings → Secrets → Actions](https://github.com/ziedsG1/Tnewsipa/settings/secrets/actions)
-2. Add **`GROQ_API_KEY`** with your key from [console.groq.com](https://console.groq.com) (`gsk_…`)
-3. Or keep **`OPENAI_API_KEY`** secret name — paste the Groq key there; the build uses Groq URL automatically for `gsk_` keys
-4. Push to `main` → IPA includes Groq config
+2. **`GROQ_API_KEY`** — required (`gsk_…`)
+3. **`GEMINI_API_KEY`** — optional but recommended (`AIza…`)
+4. Push to `main` → rebuild IPA
 
-### Local build
-
-```powershell
-$env:GROQ_API_KEY = "gsk-your-key"
-npm run ai:config
-npm run sync
-```
-
-## Option A — Local file (easiest)
-
-1. Create your private config (this file is **not** pushed to GitHub):
+## Local build
 
 ```powershell
 cd c:\Users\zied\Tnewsipa
-copy www\config.ai.example.js www\config.ai.js
-```
-
-2. Open `www\config.ai.js` and replace `PASTE_YOUR_OPENAI_KEY_HERE` with your real OpenAI key (`sk-…`).
-
-3. Build / sync:
-
-```powershell
-npm run sync
-git push
-```
-
-`www/config.ai.js` is **gitignored** so your key is not pushed to GitHub.
-
-## Option B — Environment variable
-
-```powershell
-$env:OPENAI_API_KEY = "sk-your-key-here"
+$env:GROQ_API_KEY = "gsk-your-key"
+$env:GEMINI_API_KEY = "AIza-your-key"   # optional fallback
 npm run ai:config
 npm run sync
 ```
 
-## Option C — GitHub Actions (IPA builds)
+`www/config.ai.js` is **gitignored**.
 
-1. GitHub repo → **Settings** → **Secrets and variables** → **Actions**
-2. New secret: `OPENAI_API_KEY` = your key
-3. Push to `main` — the workflow injects the key into the IPA at build time
+## Security
 
----
+Keys are embedded in the IPA. For a public app, use a backend proxy later. Rotate keys if leaked.
 
-## Security note
+## No key
 
-The key is embedded in the app binary. Anyone who extracts the IPA could find it and use your quota. For a public app, use a small backend proxy later.
-
-## Billing
-
-OpenAI requires credits on your account. Summaries use `gpt-4o-mini` (low cost per article).
-
-### “You exceeded your current quota” (without using the app)
-
-This usually means **no paid credits**, not that you used the app many times:
-
-1. Open [platform.openai.com/settings/organization/billing](https://platform.openai.com/settings/organization/billing)
-2. Add a **payment method** and **prepaid credits** (e.g. $5)
-3. Check [Usage](https://platform.openai.com/usage) — if you see usage you did not make, your key was leaked (you posted it in chat earlier). **Revoke** that key and create a new one.
-4. Update `www/config.ai.js` and GitHub secret `OPENAI_API_KEY`, then rebuild the IPA.
-
-**Free alternative:** [Groq](https://console.groq.com) — create a key, then in `config.ai.js` set:
-- `baseUrl`: `https://api.groq.com/openai/v1/chat/completions`
-- `model`: `llama-3.3-70b-versatile`
+Without keys, the app shows how to add `GROQ_API_KEY` / `GEMINI_API_KEY` — no translated summaries.

@@ -330,12 +330,9 @@ function translateSourceNote(note) {
 
 function buildAiPanelMeta(article) {
   const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
-  const provider =
-    window.TnewsAiSummary?.hasApiKey?.() && window.TnewsAiSummary?.getConfig?.().provider === "groq"
-      ? "Groq AI"
-      : window.TnewsAiSummary?.hasApiKey?.()
-        ? "AI"
-        : t("freeSummary");
+  const provider = window.TnewsAiSummary?.hasApiKey?.()
+    ? window.TnewsAiSummary?.getProviderLabel?.() || "AI"
+    : t("freeSummary");
   return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${provider}`;
 }
 
