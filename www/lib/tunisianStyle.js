@@ -1,6 +1,7 @@
 (function () {
   const LOCAL_HEADERS_TN = {
     intro: "📰 **هاو الخبر — من المقال**",
+    authorLabel: "اسم الكاتب",
     lead: "شنوة اللي صاير (بالخلاصة)",
     points: "أهم الحاجات",
     context: "علاش هاذي تهمّ",
@@ -12,6 +13,7 @@
 
   const LOCAL_HEADERS_AR = {
     intro: "📰 **ملخص الخبر — من المقال**",
+    authorLabel: "اسم الكاتب",
     lead: "الفكرة الرئيسية",
     points: "أهم النقاط",
     context: "السياق والأهمية",
@@ -23,6 +25,7 @@
 
   const LOCAL_HEADERS_EN = {
     intro: "📰 **Summary from the article**",
+    authorLabel: "Author name",
     lead: "Main idea",
     points: "Key points",
     context: "Why it matters",
@@ -34,6 +37,7 @@
 
   const LOCAL_HEADERS_FR = {
     intro: "📰 **Résumé tiré de l'article**",
+    authorLabel: "Nom de l'auteur",
     lead: "L'essentiel",
     points: "Points clés",
     context: "Pourquoi c'est important",

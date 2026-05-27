@@ -1,6 +1,6 @@
 (function () {
-  const CACHE_PREFIX = "tnews-tr:";
-  const MAX_CHARS = 450;
+  const CACHE_PREFIX = "tnews-tr4:";
+  const MAX_CHARS = 480;
 
   const TARGET = { tn: "ar", ar: "ar", en: "en", fr: "fr" };
 
@@ -8,7 +8,6 @@
     return /%(?:[0-9A-Fa-f]{2})/.test(text) || /(?:[0-9A-F]{2}){2,}%20/i.test(text);
   }
 
-  /** Fix MyMemory / URL bugs where % was stripped (C2%AB%20 → %C2%AB%20). */
   function decodeReadableText(text) {
     let t = String(text || "").trim();
     if (!t) return t;
@@ -39,15 +38,19 @@
     }
   }
 
+  function arabicRatio(text) {
+    const sample = String(text || "").replace(/\s/g, "");
+    if (!sample.length) return 0;
+    return (sample.match(/[\u0600-\u06FF]/g) || []).length / sample.length;
+  }
+
   function cacheKey(text, from, to) {
     return `${CACHE_PREFIX}${from}:${to}:${text.slice(0, 100)}`;
   }
 
   function detectLang(text) {
-    const sample = decodeReadableText(text).slice(0, 1200);
-    const arChars = (sample.match(/[\u0600-\u06FF]/g) || []).length;
-    const letters = sample.replace(/\s/g, "").length || 1;
-    if (arChars / letters > 0.22) return "ar";
+    const sample = decodeReadableText(text).slice(0, 2000);
+    if (arabicRatio(sample) > 0.18) return "ar";
     if (/[éèêëàâùûçœæ«»]/i.test(sample) || /\b(le|la|les|des|une|dans|pour)\b/i.test(sample)) {
       return "fr";
     }
@@ -55,6 +58,7 @@
   }
 
   function resolveSourceLang(text, hint) {
+    if (arabicRatio(text) > 0.18) return "ar";
     const h = String(hint || "").toLowerCase();
     if (h === "ar") return "ar";
     if (h === "fr") return "fr";
@@ -73,6 +77,37 @@
     return from !== to;
   }
 
+  function translationLooksValid(original, translated, from, to) {
+    const out = decodeReadableText(translated).trim();
+    const plain = decodeReadableText(original).trim();
+    if (!out || out === plain) return false;
+    if (looksPercentEncoded(out)) return false;
+    if (from === "ar" && to !== "ar" && arabicRatio(out) > 0.28) return false;
+    if (from === "fr" && to === "en" && arabicRatio(out) > 0.4) return false;
+    return true;
+  }
+
+  function chunkForTranslate(text, maxLen) {
+    const plain = decodeReadableText(text);
+    if (plain.length <= maxLen) return [plain];
+
+    const parts = plain.split(/(?<=[.!?؟؛])\s+/);
+    const chunks = [];
+    let buf = "";
+
+    for (const part of parts) {
+      const next = buf ? `${buf} ${part}` : part;
+      if (next.length <= maxLen) {
+        buf = next;
+      } else {
+        if (buf) chunks.push(buf.trim());
+        buf = part.length > maxLen ? part.slice(0, maxLen) : part;
+      }
+    }
+    if (buf) chunks.push(buf.trim());
+    return chunks.length ? chunks : [plain.slice(0, maxLen)];
+  }
+
   async function httpGetJson(url, params) {
     if (window.Capacitor?.isNativePlatform?.()) {
       const http = window.Capacitor?.Plugins?.CapacitorHttp;
@@ -81,8 +116,8 @@
           url,
           params,
           responseType: "json",
-          readTimeout: 25000,
-          connectTimeout: 25000,
+          readTimeout: 28000,
+          connectTimeout: 28000,
         });
         if (res.status >= 200 && res.status < 300) {
           return typeof res.data === "object" ? res.data : JSON.parse(String(res.data || "{}"));
@@ -104,8 +139,8 @@
         const res = await http.get({
           url: fullUrl,
           responseType: "text",
-          readTimeout: 25000,
-          connectTimeout: 25000,
+          readTimeout: 28000,
+          connectTimeout: 28000,
         });
         if (res.status >= 200 && res.status < 300) {
           return typeof res.data === "string" ? res.data : String(res.data ?? "");
@@ -129,22 +164,24 @@
     if (!out || /INVALID|MYMEMORY WARNING|QUERY LENGTH/i.test(out)) {
       throw new Error("translate failed");
     }
-
     out = decodeReadableText(out.trim());
-    if (looksPercentEncoded(out)) {
-      throw new Error("encoded response");
-    }
-
-    const unchanged = out === plain;
-    const sameScript =
-      from === "ar" &&
-      to !== "ar" &&
-      (out.match(/[\u0600-\u06FF]/g) || []).length > (out.replace(/\s/g, "").length || 1) * 0.2;
-    if (unchanged || sameScript) {
+    if (!translationLooksValid(plain, out, from, to)) {
       throw new Error("no translation");
     }
-
     return out;
+  }
+
+  function parseGtxResponse(raw) {
+    try {
+      return JSON.parse(raw);
+    } catch {
+      const start = raw.indexOf("[[");
+      const end = raw.lastIndexOf("]");
+      if (start >= 0 && end > start) {
+        return JSON.parse(raw.slice(start, end + 1));
+      }
+      throw new Error("gtx parse");
+    }
   }
 
   async function translateViaGtx(text, from, to) {
@@ -155,36 +192,62 @@
       `&q=${encodeURIComponent(plain)}`;
 
     const raw = await httpGetTextUrl(url);
-    const data = JSON.parse(raw);
+    const data = parseGtxResponse(raw);
     const parts = (data[0] || []).map((row) => row && row[0]).filter(Boolean);
     const out = decodeReadableText(parts.join("").trim());
-    if (!out) throw new Error("empty gtx");
-    if (from === "ar" && to !== "ar") {
-      const arRatio = (out.match(/[\u0600-\u06FF]/g) || []).length / (out.replace(/\s/g, "").length || 1);
-      if (arRatio > 0.35) throw new Error("still arabic");
+    if (!translationLooksValid(plain, out, from, to)) {
+      throw new Error("gtx invalid");
     }
     return out;
   }
 
+  async function translateViaLingva(text, from, to) {
+    const plain = decodeReadableText(text).slice(0, MAX_CHARS);
+    const url = `https://lingva.ml/api/v1/${encodeURIComponent(from)}/${encodeURIComponent(to)}/${encodeURIComponent(plain)}`;
+    const raw = await httpGetTextUrl(url);
+    const data = JSON.parse(raw);
+    const out = decodeReadableText(String(data?.translation || "").trim());
+    if (!translationLooksValid(plain, out, from, to)) {
+      throw new Error("lingva invalid");
+    }
+    return out;
+  }
+
+  function providersForPair(from, to) {
+    if (from === "ar" && to !== "ar") {
+      return [
+        (t, f, tl) => translateViaGtx(t, f, tl),
+        (t, f, tl) => translateViaLingva(t, f, tl),
+        (t, f, tl) => translateViaMyMemory(t, f, tl),
+      ];
+    }
+    return [
+      (t, f, tl) => translateViaGtx(t, f, tl),
+      (t, f, tl) => translateViaMyMemory(t, f, tl),
+      (t, f, tl) => translateViaLingva(t, f, tl),
+    ];
+  }
+
   async function translateOne(sentence, from, to) {
     const clean = decodeReadableText(sentence);
+    if (!clean) return clean;
+
     const key = cacheKey(clean, from, to);
     try {
       const cached = sessionStorage.getItem(key);
-      if (cached) return decodeReadableText(cached);
+      if (cached && translationLooksValid(clean, cached, from, to)) {
+        return decodeReadableText(cached);
+      }
     } catch {
       /* ignore */
     }
 
-    const providers = [
-      () => translateViaMyMemory(clean, from, to),
-      () => translateViaGtx(clean, from, to),
-    ];
-
+    const runners = providersForPair(from, to);
     let lastErr = null;
-    for (const run of providers) {
+
+    for (const run of runners) {
       try {
-        const translated = await run();
+        const translated = await run(clean, from, to);
         try {
           sessionStorage.setItem(key, translated);
         } catch {
@@ -198,32 +261,54 @@
     throw lastErr || new Error("translate failed");
   }
 
-  async function translateSentences(sentences, summaryLangId, onProgress, options = {}) {
-    const cleaned = sentences.map((s) => decodeReadableText(s));
+  async function translateText(text, summaryLangId, options = {}) {
+    const plain = decodeReadableText(text);
+    if (!plain) return plain;
+
     const hint = options.sourceLang || options.locale || "";
-    const from = resolveSourceLang(cleaned.join(" "), hint);
+    if (!needsTranslation(plain, summaryLangId, hint)) return plain;
+
+    const from = resolveSourceLang(plain, hint);
     const to = targetCode(summaryLangId);
+    const chunks = chunkForTranslate(plain, MAX_CHARS);
+    const parts = [];
 
-    if (!needsTranslation(cleaned.join(" "), summaryLangId, hint)) {
-      return cleaned;
-    }
-
-    const out = [];
-    for (let i = 0; i < cleaned.length; i++) {
-      onProgress?.(i + 1, cleaned.length);
+    for (let i = 0; i < chunks.length; i++) {
+      options.onProgress?.(i + 1, chunks.length);
       try {
-        out.push(await translateOne(cleaned[i], from, to));
+        parts.push(await translateOne(chunks[i], from, to));
       } catch {
-        out.push(cleaned[i]);
+        parts.push(chunks[i]);
       }
     }
-    return out;
+
+    return parts.join(" ").replace(/\s+/g, " ").trim();
+  }
+
+  async function translateSentences(sentences, summaryLangId, onProgress, options = {}) {
+    const joined = sentences.map((s) => decodeReadableText(s)).join(" ");
+    const translated = await translateText(joined, summaryLangId, {
+      ...options,
+      onProgress,
+    });
+    const parts = translated
+      .split(/(?<=[.!?؟؛])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 20);
+
+    if (parts.length >= sentences.length) {
+      return parts.slice(0, sentences.length);
+    }
+
+    return sentences.map((s, i) => parts[i] || s);
   }
 
   window.TnewsFreeTranslate = {
     detectLang,
     resolveSourceLang,
     needsTranslation,
+    translateText,
+    translateOne,
     translateSentences,
     decodeReadableText,
     targetCode,

@@ -68,18 +68,34 @@
       .map((p) => p.sentence);
   }
 
-  function leadSectionTitle(author, H) {
+  async function formatAuthorBlock(author, H, summaryLangId, sourceLangHint, onStatus) {
     const name = cleanText(author);
-    return name || H.lead || "";
+    if (!name) return "";
+
+    let displayName = name;
+    const tr = window.TnewsFreeTranslate;
+    if (tr?.needsTranslation?.(name, summaryLangId, sourceLangHint)) {
+      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+      try {
+        displayName = await tr.translateText(name, summaryLangId, {
+          sourceLang: sourceLangHint,
+          onProgress: null,
+        });
+      } catch {
+        displayName = name;
+      }
+    }
+
+    const label = H.authorLabel || "Author name";
+    return `**${label}**\n${displayName}\n\n`;
   }
 
   async function buildSummary(loaded, summaryLangId, onStatus) {
     const H = headers();
     const title = cleanText(loaded.title);
-    const body = cleanText(loaded.body);
+    let body = cleanText(loaded.body);
     const fromPage = loaded.fromPage;
     const sourceLangHint = loaded.locale || loaded.sourceLang || "";
-    const sentences = splitSentences(body);
 
     const sourceNote = window.TnewsArticleContent?.sourceLabelArabic
       ? window.TnewsArticleContent.sourceLabelArabic(loaded)
@@ -87,41 +103,45 @@
         ? H.fromArticle
         : H.fromRss;
 
-    const sectionLead = leadSectionTitle(loaded.author, H);
+    const translateOpts = { sourceLang: sourceLangHint, locale: sourceLangHint };
 
-    if (!sentences.length) {
-      return {
-        text:
-          `${H.intro || "📰"}\n\n**${sectionLead}**\n${title}\n\n**${H.empty || ""}**`,
-        fromPage,
-        sourceNote,
-      };
-    }
-
-    let picked = pickTopSentences(sentences, title, Math.min(5, sentences.length));
-
-    const translateOpts = { sourceLang: sourceLangHint };
     if (window.TnewsFreeTranslate?.needsTranslation?.(body, summaryLangId, sourceLangHint)) {
       onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
-      picked = await window.TnewsFreeTranslate.translateSentences(
-        picked,
-        summaryLangId,
-        (n, total) => {
+      body = await window.TnewsFreeTranslate.translateText(body, summaryLangId, {
+        ...translateOpts,
+        onProgress: (n, total) => {
           onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
         },
-        translateOpts,
-      );
+      });
     }
 
-    const lead = picked[0] || title;
-    const bullets = picked.slice(1, 4);
+    const sentences = splitSentences(body);
+    const authorBlock = await formatAuthorBlock(
+      loaded.author,
+      H,
+      summaryLangId,
+      sourceLangHint,
+      onStatus,
+    );
+
+    if (!sentences.length) {
+      let out = `${H.intro || "📰"}\n\n`;
+      out += authorBlock;
+      out += `**${H.empty || ""}**`;
+      return { text: out, fromPage, sourceNote };
+    }
+
+    const picked = pickTopSentences(sentences, title, Math.min(5, sentences.length));
+    const bullets = picked.slice(0, 4);
     const extra = picked[4];
 
     let out = `${H.intro || "📰"}\n\n`;
-    out += `**${sectionLead}**\n${lead}\n\n`;
+    out += authorBlock;
     out += `**${H.points || ""}**\n`;
-    out += bullets.length ? bullets.map((b) => `• ${b}`).join("\n") : `• ${lead}`;
-    out += `\n\n**${H.context || ""}**\n${extra || bullets[bullets.length - 1] || lead}`;
+    out += bullets.length
+      ? bullets.map((b) => `• ${b}`).join("\n")
+      : `• ${title}`;
+    out += `\n\n**${H.context || ""}**\n${extra || bullets[bullets.length - 1] || title}`;
     out += `\n\n**${H.source || ""}**\n${sourceNote}`;
 
     return { text: out, fromPage, sourceNote };

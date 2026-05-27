@@ -366,8 +366,13 @@
     const minFull = handler?.minFullChars || MIN_FULL_CHARS;
 
     function result(extra) {
+      const bodyForLang = extra.body || "";
+      const sourceLang =
+        feedLocale ||
+        (bodyForLang.length > 80 && /[\u0600-\u06FF]/.test(bodyForLang.slice(0, 2000)) ? "ar" : "");
       return {
         locale: feedLocale,
+        sourceLang,
         author: rssAuthor,
         ...extra,
       };
