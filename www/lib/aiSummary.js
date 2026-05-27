@@ -4,11 +4,6 @@
     model: "llama-3.3-70b-versatile",
   };
 
-  const OPENAI_DEFAULTS = {
-    baseUrl: "https://api.openai.com/v1/chat/completions",
-    model: "gpt-4o-mini",
-  };
-
   const LANG_STATUS = {
     tn: "قاعدين نحضّرو الشرح بالدارجة…",
     ar: "جاري إعداد الملخص بالعربية…",
@@ -20,19 +15,31 @@
     return Boolean(window.Capacitor?.isNativePlatform?.());
   }
 
+  /** Groq-only: ignores old OpenAI (sk-) keys baked into older builds. */
   function getBakedConfig() {
     const cfg = window.TNEWS_AI_CONFIG;
     if (!cfg || typeof cfg !== "object") return null;
     const apiKey = String(cfg.apiKey || "").trim();
     if (!apiKey || /PASTE_YOUR/i.test(apiKey)) return null;
+
     const provider = String(cfg.provider || "").toLowerCase();
-    const useGroq = provider === "groq" || apiKey.startsWith("gsk_");
-    const defaults = useGroq ? GROQ_DEFAULTS : OPENAI_DEFAULTS;
+    const isGroqKey = apiKey.startsWith("gsk_");
+    const isGroqProvider = provider === "groq";
+    const isGroqUrl = /groq\.com/i.test(String(cfg.baseUrl || ""));
+
+    if (!isGroqKey && !isGroqProvider && !isGroqUrl) {
+      return null;
+    }
+
+    if (apiKey.startsWith("sk-")) {
+      return null;
+    }
+
     return {
-      provider: useGroq ? "groq" : "openai",
+      provider: "groq",
       apiKey,
-      baseUrl: String(cfg.baseUrl || defaults.baseUrl).trim(),
-      model: String(cfg.model || defaults.model).trim(),
+      baseUrl: String(cfg.baseUrl || GROQ_DEFAULTS.baseUrl).trim(),
+      model: String(cfg.model || GROQ_DEFAULTS.model).trim(),
     };
   }
 
@@ -97,8 +104,8 @@
     const note = style.translateNote || lang?.translateNote || "";
 
     const map = {
-      tn: "Write the ENTIRE response in Tunisian derja (colloquial Tunisian Arabic). Translate the headline and every quoted fact into derja.",
-      ar: "Write the ENTIRE response in Modern Standard Arabic (not derja). Translate the headline and all article excerpts into Arabic.",
+      tn: "Write the ENTIRE response in Tunisian derja (colloquial Tunisian Arabic). Translate the headline and every sentence from the article into derja — even if the source is French or English.",
+      ar: "Write the ENTIRE response in Modern Standard Arabic (not derja). Translate the headline and every sentence from the article into Arabic — even if the source is French or English.",
       en: "Write the ENTIRE response in English. Translate the headline and all article excerpts, quotes, and facts into English.",
       fr: "Write the ENTIRE response in French. Translate the headline and all article excerpts, quotes, and facts into French.",
     };
@@ -127,6 +134,7 @@ Strict rules:
 - Use ONLY the article text below.
 - Do not invent names, numbers, or quotes.
 - ${languageInstruction()}
+- Never leave the body in the original language if the reader chose another language.
 - If the text is very short, say so honestly.
 
 Required sections:
@@ -145,29 +153,33 @@ ${bodySection}`;
   function extractAssistantText(data) {
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content === "string" && content.trim()) return content.trim();
-    throw new Error("لم يصل ملخص من خدمة الذكاء الاصطناعي");
+    throw new Error("لم يصل ملخص من Groq");
   }
 
   function formatApiError(message) {
     const m = String(message || "");
-    if (/exceeded your current quota|insufficient_quota|billing/i.test(m)) {
-      return (
-        "حساب OpenAI بدون رصيد أو بدون بطاقة دفع مفعّلة. " +
-        "أضف رصيداً على platform.openai.com أو استخدم Groq."
-      );
+    if (/invalid.*api.*key|incorrect api key|401|invalid_api_key/i.test(m)) {
+      return "مفتاح Groq غير صالح — أنشئ مفتاح gsk_ على console.groq.com وأعد بناء التطبيق (GROQ_API_KEY في GitHub).";
     }
-    if (/invalid.*api.*key|incorrect api key|401/i.test(m)) {
-      return "مفتاح API غير صالح — حدّث config.ai.js أو سر GitHub.";
+    if (/rate limit|429|tokens per day/i.test(m)) {
+      return "حد Groq — انتظر قليلاً وحاول مرة أخرى.";
     }
-    if (/rate limit|429/i.test(m)) {
-      return "طلبات كثيرة — انتظر دقيقة وحاول مرة أخرى.";
+    if (/model.*decommission|no longer supported/i.test(m)) {
+      return "نموذج Groq تغيّر — حدّث التطبيق من GitHub.";
     }
-    return m || "تعذّر التحليل — تحقق من الإنترنت";
+    if (/exceeded your current quota|insufficient_quota|billing|openai/i.test(m)) {
+      return "التطبيق يحتاج مفتاح Groq (gsk_) وليس OpenAI — أضف GROQ_API_KEY في GitHub Actions وأعد بناء الـ IPA.";
+    }
+    return m || "تعذّر الاتصال بـ Groq — تحقق من الإنترنت";
   }
 
-  async function requestChat(messages) {
+  async function requestChat(messages, options) {
     const config = getBakedConfig();
-    if (!config?.apiKey) throw new Error("AI_NOT_CONFIGURED");
+    if (!config?.apiKey) {
+      const err = new Error("GROQ_NOT_CONFIGURED");
+      err.code = "GROQ_NOT_CONFIGURED";
+      throw err;
+    }
 
     const url = config.baseUrl.includes("/chat/completions")
       ? config.baseUrl
@@ -178,8 +190,8 @@ ${bodySection}`;
       { Authorization: `Bearer ${config.apiKey}` },
       {
         model: config.model,
-        temperature: 0.2,
-        max_tokens: 1200,
+        temperature: options?.temperature ?? 0.2,
+        max_tokens: options?.maxTokens ?? 1200,
         messages,
       },
     );
@@ -187,10 +199,9 @@ ${bodySection}`;
 
   async function summarizeArticle(article, options) {
     const onStatus = options?.onStatus;
-    const config = getBakedConfig();
-    if (!config?.apiKey) {
-      const err = new Error("AI_NOT_CONFIGURED");
-      err.code = "AI_NOT_CONFIGURED";
+    if (!getBakedConfig()?.apiKey) {
+      const err = new Error("GROQ_NOT_CONFIGURED");
+      err.code = "GROQ_NOT_CONFIGURED";
       throw err;
     }
 
@@ -199,30 +210,18 @@ ${bodySection}`;
     }
 
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
-
     onStatus?.(LANG_STATUS[getLangId()] || LANG_STATUS.tn);
 
-    const url = config.baseUrl.includes("/chat/completions")
-      ? config.baseUrl
-      : config.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
-
     const style = window.TnewsTunisianStyle?.getStyle?.() || {};
-
-    const data = await httpPostJson(
-      url,
-      { Authorization: `Bearer ${config.apiKey}` },
-      {
-        model: config.model,
-        temperature: 0.55,
-        max_tokens: 950,
-        messages: [
-          {
-            role: "system",
-            content: style.SYSTEM_PROMPT || "Summarize news clearly without inventing facts.",
-          },
-          { role: "user", content: buildPrompt(article, loaded) },
-        ],
-      },
+    const data = await requestChat(
+      [
+        {
+          role: "system",
+          content: `${style.SYSTEM_PROMPT || "Summarize news clearly."}\nYou only output in the language requested in the user message.`,
+        },
+        { role: "user", content: buildPrompt(article, loaded) },
+      ],
+      { temperature: 0.55, maxTokens: 950 },
     );
 
     const sourceNote = window.TnewsArticleContent.sourceLabelArabic(loaded);

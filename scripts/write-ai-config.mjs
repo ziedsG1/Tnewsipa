@@ -1,5 +1,5 @@
 /**
- * Writes www/config.ai.js from GROQ_API_KEY or OPENAI_API_KEY (never commit that file).
+ * Writes www/config.ai.js from GROQ_API_KEY only (never commit that file).
  */
 import fs from "fs";
 import path from "path";
@@ -14,35 +14,24 @@ const GROQ = {
   model: "llama-3.3-70b-versatile",
 };
 
-const OPENAI = {
-  baseUrl: "https://api.openai.com/v1/chat/completions",
-  model: "gpt-4o-mini",
-};
-
-const apiKey = (
-  process.env.GROQ_API_KEY ||
-  process.env.OPENAI_API_KEY ||
-  process.argv[2] ||
-  ""
-).trim();
+const apiKey = (process.env.GROQ_API_KEY || process.argv[2] || "").trim();
 
 if (!apiKey) {
-  console.error("Set GROQ_API_KEY or OPENAI_API_KEY (or pass key as first argument).");
+  console.error("Set GROQ_API_KEY (gsk_…) — this app uses Groq only.");
   process.exit(1);
 }
 
-const useGroq =
-  process.env.AI_PROVIDER === "groq" ||
-  apiKey.startsWith("gsk_") ||
-  Boolean(process.env.GROQ_API_KEY);
+if (!apiKey.startsWith("gsk_")) {
+  console.error("Key must be a Groq key (starts with gsk_). Get one at https://console.groq.com");
+  process.exit(1);
+}
 
-const defaults = useGroq ? GROQ : OPENAI;
-const baseUrl = (process.env.AI_API_BASE || defaults.baseUrl).trim();
-const model = (process.env.AI_API_MODEL || defaults.model).trim();
+const baseUrl = (process.env.AI_API_BASE || GROQ.baseUrl).trim();
+const model = (process.env.AI_API_MODEL || GROQ.model).trim();
 
 const content = `/** Auto-generated — do not commit */
 window.TNEWS_AI_CONFIG = {
-  provider: ${JSON.stringify(useGroq ? "groq" : "openai")},
+  provider: "groq",
   apiKey: ${JSON.stringify(apiKey)},
   baseUrl: ${JSON.stringify(baseUrl)},
   model: ${JSON.stringify(model)},
@@ -50,4 +39,4 @@ window.TNEWS_AI_CONFIG = {
 `;
 
 fs.writeFileSync(outPath, content, "utf8");
-console.log(`Wrote ${outPath} (${useGroq ? "Groq" : "OpenAI"}, ${model})`);
+console.log(`Wrote ${outPath} (Groq, ${model})`);
