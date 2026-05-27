@@ -1,6 +1,7 @@
 (function () {
-  const BATCH_SIZE = 8;
-  const MAX_TRANSLATE = 48;
+  const BATCH_SIZE = 12;
+  const MAX_TRANSLATE = 14;
+  const BATCH_DELAY_MS = 2200;
   const CACHE_PREFIX = "tnews-card-ui:";
 
   const TARGET = {
@@ -56,11 +57,6 @@
     return { title: article.title || "", summary: article.summary || "" };
   }
 
-  async function groqChat(messages) {
-    if (!window.TnewsAiSummary?.requestChat) throw new Error("AI unavailable");
-    return window.TnewsAiSummary.requestChat(messages);
-  }
-
   function parseJsonArray(text) {
     const raw = String(text || "").trim();
     const start = raw.indexOf("[");
@@ -76,39 +72,49 @@
 
   async function translateBatch(batch, uiLang) {
     if (!window.TnewsAiSummary?.hasApiKey?.()) return null;
+    if (window.TnewsAiSummary?.isRateLimited?.()) return null;
 
     const target = TARGET[uiLang] || TARGET.en;
     const items = batch.map((article, index) => ({
       i: index,
-      title: (article.title || "").slice(0, 220),
-      summary: (article.summary || "").slice(0, 320),
+      title: (article.title || "").slice(0, 200),
+      summary: (article.summary || "").slice(0, 240),
     }));
 
-    const prompt = `Translate these news card texts into ${target}.
-Return ONLY a JSON array. Each object: {"i": number, "title": string, "summary": string}.
-Keep meaning accurate. summary may be empty string if input empty. No extra text.
-
+    const prompt = `Translate into ${target}. JSON array only: [{"i":0,"title":"...","summary":"..."}]
 ${JSON.stringify(items)}`;
 
-    const data = await groqChat([
-      {
-        role: "system",
-        content: "You translate news headlines and short excerpts. Output valid JSON only.",
-      },
-      { role: "user", content: prompt },
-    ]);
+    const data = await window.TnewsAiSummary.requestChat(
+      [
+        { role: "system", content: "Translate headlines. JSON array only." },
+        { role: "user", content: prompt },
+      ],
+      { temperature: 0.1, maxTokens: 900, retries: 1 },
+    );
 
-    const content = data?.choices?.[0]?.message?.content;
-    return parseJsonArray(content);
+    return parseJsonArray(data?.choices?.[0]?.message?.content);
+  }
+
+  function delay(ms) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
   async function refreshForUiLang(articles, uiLang, onBatchDone) {
-    if (!window.TnewsAiSummary?.hasApiKey?.()) return { translated: 0 };
+    if (!window.TnewsAiSummary?.hasApiKey?.()) return { translated: 0, rateLimited: false };
+    if (window.TnewsAiSummary?.isRateLimited?.()) {
+      return { translated: 0, rateLimited: true };
+    }
 
     const list = articles.slice(0, MAX_TRANSLATE).filter((a) => needsTranslation(a, uiLang));
     let translated = 0;
+    let rateLimited = false;
 
     for (let offset = 0; offset < list.length; offset += BATCH_SIZE) {
+      if (window.TnewsAiSummary?.isRateLimited?.()) {
+        rateLimited = true;
+        break;
+      }
+
       const batch = list.slice(offset, offset + BATCH_SIZE);
       const pending = batch.filter((a) => {
         const c = readCache(a, uiLang);
@@ -118,33 +124,36 @@ ${JSON.stringify(items)}`;
         }
         return !(a.uiDisplay?.lang === uiLang);
       });
-      if (!pending.length) {
-        onBatchDone?.();
-        continue;
+
+      if (pending.length) {
+        try {
+          const rows = await translateBatch(pending, uiLang);
+          if (rows) {
+            pending.forEach((article, idx) => {
+              const row = rows.find((r) => Number(r.i) === idx) || rows[idx];
+              if (!row) return;
+              const display = {
+                title: String(row.title || article.title || "").trim(),
+                summary: String(row.summary ?? article.summary ?? "").trim(),
+              };
+              article.uiDisplay = { lang: uiLang, ...display };
+              writeCache(article, uiLang, display);
+              translated += 1;
+            });
+          }
+        } catch (err) {
+          if (window.TnewsAiSummary?.isRateLimitError?.(err.message)) {
+            rateLimited = true;
+            break;
+          }
+        }
       }
 
-      try {
-        const rows = await translateBatch(pending, uiLang);
-        if (rows) {
-          pending.forEach((article, idx) => {
-            const row = rows.find((r) => Number(r.i) === idx) || rows[idx];
-            if (!row) return;
-            const display = {
-              title: String(row.title || article.title || "").trim(),
-              summary: String(row.summary ?? article.summary ?? "").trim(),
-            };
-            article.uiDisplay = { lang: uiLang, ...display };
-            writeCache(article, uiLang, display);
-            translated += 1;
-          });
-        }
-      } catch {
-        /* keep originals for this batch */
-      }
       onBatchDone?.();
+      if (offset + BATCH_SIZE < list.length) await delay(BATCH_DELAY_MS);
     }
 
-    return { translated };
+    return { translated, rateLimited };
   }
 
   window.TnewsCardTranslate = {

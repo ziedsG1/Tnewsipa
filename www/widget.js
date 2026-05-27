@@ -26,6 +26,8 @@ const aiPanelLoading = document.getElementById("ai-panel-loading");
 const aiPanelContent = document.getElementById("ai-panel-content");
 const aiPanelError = document.getElementById("ai-panel-error");
 const aiOpenSourceBtn = document.getElementById("ai-open-source");
+const aiRetryBtn = document.getElementById("ai-retry-btn");
+let cardTranslateTimer = null;
 const uiLangBarEl = document.getElementById("ui-lang-bar");
 const aiSummaryLangBarEl = document.getElementById("ai-summary-lang-bar");
 const summaryLangLabelEl = document.getElementById("summary-lang-label");
@@ -99,8 +101,15 @@ function cardText(article) {
   return { title: article.title || "", summary: article.summary || "" };
 }
 
+function scheduleCardTranslations() {
+  if (cardTranslateTimer) clearTimeout(cardTranslateTimer);
+  cardTranslateTimer = setTimeout(() => refreshCardTranslations(), 6000);
+}
+
 async function refreshCardTranslations() {
   if (!window.TnewsCardTranslate?.refreshForUiLang || !articles.length) return;
+  if (window.TnewsAiSummary?.isRateLimited?.()) return;
+  if (!aiPanelEl.hidden) return;
 
   const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
   const needsWork = articles.some((a) => window.TnewsCardTranslate.needsTranslation(a, uiLang));
@@ -111,12 +120,13 @@ async function refreshCardTranslations() {
   const gen = ++cardTranslateGeneration;
   statusEl.textContent = t("translatingCards");
 
-  await window.TnewsCardTranslate.refreshForUiLang(articles, uiLang, () => {
+  const { rateLimited } = await window.TnewsCardTranslate.refreshForUiLang(articles, uiLang, () => {
     if (gen !== cardTranslateGeneration) return;
     renderNewsList();
   });
 
   if (gen === cardTranslateGeneration) updateStatusLine();
+  if (rateLimited) statusEl.textContent = t("cardsRateLimited");
 }
 
 function updateNotifyButton() {
@@ -204,11 +214,12 @@ function selectArticle(index) {
   }
 }
 
-function setAiPanelState({ loading, content, error }) {
+function setAiPanelState({ loading, content, error, showRetry }) {
   aiPanelLoading.hidden = !loading;
   aiPanelContent.hidden = !content;
   aiPanelError.hidden = !error;
   if (error) aiPanelError.textContent = error;
+  if (aiRetryBtn) aiRetryBtn.hidden = !showRetry;
 }
 
 function initUiLangBar() {
@@ -249,7 +260,7 @@ function selectUiLang(id) {
     aiPanelMeta.textContent = buildAiPanelMeta(aiPanelArticle);
   }
   loadWeather().catch(() => {});
-  refreshCardTranslations();
+  scheduleCardTranslations();
 }
 
 function applyStaticUi() {
@@ -265,6 +276,7 @@ function applyStaticUi() {
   if (aiSummaryLangBarEl) aiSummaryLangBarEl.setAttribute("aria-label", t("summaryLangAria"));
   if (aiPanelClose) aiPanelClose.title = t("aiClose");
   if (aiOpenSourceBtn) aiOpenSourceBtn.textContent = t("aiOpenSource");
+  if (aiRetryBtn) aiRetryBtn.textContent = t("retrySummary");
   if (statusEl && !lastFetchedAt) statusEl.textContent = t("statusLoading");
   if (weatherTextEl && weatherTextEl.textContent.includes("…")) {
     weatherTextEl.textContent = t("weatherLoading");
@@ -349,7 +361,7 @@ function closeAiPanel() {
   document.body.style.overflow = "";
   aiPanelArticle = null;
   aiPanelContent.innerHTML = "";
-  setAiPanelState({ loading: false, content: false, error: false });
+  setAiPanelState({ loading: false, content: false, error: false, showRetry: false });
 }
 
 function formatSummaryToHtml(text) {
@@ -382,7 +394,7 @@ function appendSourceToMeta(sourceNote) {
 
 async function runArticleSummary(article) {
   aiPanelLoading.textContent = t("aiFetching");
-  setAiPanelState({ loading: true, content: false, error: false });
+  setAiPanelState({ loading: true, content: false, error: false, showRetry: false });
   if (aiPanelMeta) aiPanelMeta.textContent = buildAiPanelMeta(article);
 
   const onStatus = (msg) => {
@@ -409,16 +421,19 @@ async function runArticleSummary(article) {
     const { text, sourceNote } = unwrapSummaryResult(result);
     aiPanelContent.innerHTML = formatSummaryToHtml(text);
     appendSourceToMeta(sourceNote);
-    setAiPanelState({ loading: false, content: true, error: false });
+    setAiPanelState({ loading: false, content: true, error: false, showRetry: false });
   } catch (err) {
     const message =
       err.code === "AI_NOT_CONFIGURED" || err.code === "GROQ_NOT_CONFIGURED"
         ? t("groqConfig")
         : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || t("summaryFailed");
+    const showRetry =
+      err.code === "RATE_LIMIT" || window.TnewsAiSummary?.isRateLimitError?.(err.message);
     setAiPanelState({
       loading: false,
       content: false,
       error: message,
+      showRetry,
     });
   }
 }
@@ -524,7 +539,7 @@ function applyPayload(payload) {
   lastFetchedAt = payload.fetchedAt || null;
   updateStatusLine();
   renderNewsList();
-  refreshCardTranslations();
+  scheduleCardTranslations();
   if (window.tnewsWidget?.syncToHomeScreenWidget) {
     window.tnewsWidget.syncToHomeScreenWidget();
   }
@@ -586,6 +601,10 @@ aiPanelBackdrop?.addEventListener("click", closeAiPanel);
 
 aiOpenSourceBtn?.addEventListener("click", () => {
   if (aiPanelArticle?.link) window.tnewsWidget.openLink(aiPanelArticle.link);
+});
+
+aiRetryBtn?.addEventListener("click", () => {
+  if (aiPanelArticle) runArticleSummary(aiPanelArticle);
 });
 
 (async function init() {

@@ -68,6 +68,8 @@
       fromArticlePartial: "من المقال (جزء)",
       fromRss: "من RSS برك",
       translatingCards: "جاري ترجمة عناوين الأخبار…",
+      cardsRateLimited: "ترجمة العناوين متوقفة — حد Groq (الملخص أولوية)",
+      retrySummary: "إعادة المحاولة",
     },
     tn: {
       pageLangAria: "لغة الصفحة",
@@ -128,6 +130,8 @@
       fromArticlePartial: "من المقال (شوية)",
       fromRss: "من RSS برك",
       translatingCards: "قاعدين نترجمو العناوين…",
+      cardsRateLimited: "ترجمة العناوين وقفت — Groq مشغول",
+      retrySummary: "عاود جرّب",
     },
     en: {
       pageLangAria: "Interface language",
@@ -188,6 +192,8 @@
       fromArticlePartial: "From article (partial)",
       fromRss: "RSS only",
       translatingCards: "Translating headlines…",
+      cardsRateLimited: "Headline translation paused — Groq limit",
+      retrySummary: "Retry",
     },
     fr: {
       pageLangAria: "Langue de l'interface",
@@ -248,6 +254,8 @@
       fromArticlePartial: "Article (partiel)",
       fromRss: "RSS seulement",
       translatingCards: "Traduction des titres…",
+      cardsRateLimited: "Traduction des titres en pause — limite Groq",
+      retrySummary: "Réessayer",
     },
   };
 

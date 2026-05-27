@@ -519,6 +519,17 @@ body {
   flex-shrink: 0;
 }
 
+.ai-panel-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
 .ai-panel-footer .ai-secondary-btn {
   width: 100%;
+}
+
+#ai-retry-btn {
+  color: var(--accent-soft);
+  border-color: var(--accent);
 }

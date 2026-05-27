@@ -58,6 +58,50 @@
     return Boolean(getBakedConfig()?.apiKey);
   }
 
+  let rateLimitedUntil = 0;
+  const SUMMARY_CACHE_PREFIX = "tnews-summary:";
+
+  function sleep(ms) {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+
+  function isRateLimitError(message) {
+    return /rate limit|429|tokens per day|too many requests/i.test(String(message || ""));
+  }
+
+  function setRateLimited(seconds) {
+    rateLimitedUntil = Date.now() + seconds * 1000;
+  }
+
+  function isRateLimited() {
+    return Date.now() < rateLimitedUntil;
+  }
+
+  function getRateLimitWaitSec() {
+    return Math.max(0, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+  }
+
+  function summaryCacheKey(article, langId) {
+    return `${SUMMARY_CACHE_PREFIX}${langId}:${article.link || article.id}`;
+  }
+
+  function readSummaryCache(article, langId) {
+    try {
+      const raw = sessionStorage.getItem(summaryCacheKey(article, langId));
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  }
+
+  function writeSummaryCache(article, langId, result) {
+    try {
+      sessionStorage.setItem(summaryCacheKey(article, langId), JSON.stringify(result));
+    } catch {
+      /* quota */
+    }
+  }
+
   async function httpPostJson(url, headers, body) {
     if (isNative()) {
       const http = window.Capacitor?.Plugins?.CapacitorHttp;
@@ -161,8 +205,11 @@ ${bodySection}`;
     if (/invalid.*api.*key|incorrect api key|401|invalid_api_key/i.test(m)) {
       return "مفتاح Groq غير صالح — أنشئ مفتاح gsk_ على console.groq.com وأعد بناء التطبيق (GROQ_API_KEY في GitHub).";
     }
-    if (/rate limit|429|tokens per day/i.test(m)) {
-      return "حد Groq — انتظر قليلاً وحاول مرة أخرى.";
+    if (isRateLimitError(m)) {
+      const wait = getRateLimitWaitSec();
+      return wait > 0
+        ? `حد Groq — انتظر ${wait} ثانية ثم اضغط «إعادة المحاولة».`
+        : "حد Groq — انتظر قليلاً ثم اضغط «إعادة المحاولة».";
     }
     if (/model.*decommission|no longer supported/i.test(m)) {
       return "نموذج Groq تغيّر — حدّث التطبيق من GitHub.";
@@ -181,28 +228,60 @@ ${bodySection}`;
       throw err;
     }
 
+    if (isRateLimited()) {
+      const err = new Error("rate limit");
+      err.code = "RATE_LIMIT";
+      throw err;
+    }
+
     const url = config.baseUrl.includes("/chat/completions")
       ? config.baseUrl
       : config.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
 
-    return httpPostJson(
-      url,
-      { Authorization: `Bearer ${config.apiKey}` },
-      {
-        model: config.model,
-        temperature: options?.temperature ?? 0.2,
-        max_tokens: options?.maxTokens ?? 1200,
-        messages,
-      },
-    );
+    const maxRetries = options?.retries ?? 2;
+    let lastErr;
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        return await httpPostJson(
+          url,
+          { Authorization: `Bearer ${config.apiKey}` },
+          {
+            model: config.model,
+            temperature: options?.temperature ?? 0.2,
+            max_tokens: options?.maxTokens ?? 1200,
+            messages,
+          },
+        );
+      } catch (err) {
+        lastErr = err;
+        if (!isRateLimitError(err.message) || attempt >= maxRetries) break;
+        setRateLimited(50);
+        await sleep(1800 * (attempt + 1));
+      }
+    }
+
+    if (isRateLimitError(lastErr?.message)) {
+      setRateLimited(55);
+      const err = new Error(lastErr.message);
+      err.code = "RATE_LIMIT";
+      throw err;
+    }
+    throw lastErr;
   }
 
   async function summarizeArticle(article, options) {
     const onStatus = options?.onStatus;
+    const langId = getLangId();
     if (!getBakedConfig()?.apiKey) {
       const err = new Error("GROQ_NOT_CONFIGURED");
       err.code = "GROQ_NOT_CONFIGURED";
       throw err;
+    }
+
+    if (!options?.skipCache) {
+      const cached = readSummaryCache(article, langId);
+      if (cached?.text) return cached;
     }
 
     if (!window.TnewsArticleContent?.loadFromArticlePage) {
@@ -210,7 +289,7 @@ ${bodySection}`;
     }
 
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
-    onStatus?.(LANG_STATUS[getLangId()] || LANG_STATUS.tn);
+    onStatus?.(LANG_STATUS[langId] || LANG_STATUS.tn);
 
     const style = window.TnewsTunisianStyle?.getStyle?.() || {};
     const data = await requestChat(
@@ -221,15 +300,17 @@ ${bodySection}`;
         },
         { role: "user", content: buildPrompt(article, loaded) },
       ],
-      { temperature: 0.55, maxTokens: 950 },
+      { temperature: 0.55, maxTokens: 950, retries: 3 },
     );
 
     const sourceNote = window.TnewsArticleContent.sourceLabelArabic(loaded);
-    return {
+    const result = {
       text: extractAssistantText(data),
       fromPage: loaded.fromPage,
       sourceNote,
     };
+    writeSummaryCache(article, langId, result);
+    return result;
   }
 
   function formatSummaryHtml(text) {
@@ -251,6 +332,9 @@ ${bodySection}`;
     summarizeArticle,
     formatSummaryHtml,
     formatApiError,
+    isRateLimited,
+    isRateLimitError,
+    getRateLimitWaitSec,
     defaults: GROQ_DEFAULTS,
   };
 })();
