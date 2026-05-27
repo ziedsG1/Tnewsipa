@@ -102,8 +102,7 @@ function cardText(article) {
 }
 
 function scheduleCardTranslations() {
-  if (cardTranslateTimer) clearTimeout(cardTranslateTimer);
-  cardTranslateTimer = setTimeout(() => refreshCardTranslations(), 6000);
+  /* Off by default — headline translation used the API quota and caused Groq waits. */
 }
 
 async function refreshCardTranslations() {

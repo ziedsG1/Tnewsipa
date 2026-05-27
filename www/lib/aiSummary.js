@@ -44,19 +44,48 @@
     };
   }
 
+  const GROQ_SKIP_KEY = "tnews-skip-groq-until";
+
+  function getGroqSkipUntil() {
+    try {
+      return Number(sessionStorage.getItem(GROQ_SKIP_KEY) || 0);
+    } catch {
+      return 0;
+    }
+  }
+
+  function skipGroqForMinutes(minutes) {
+    try {
+      sessionStorage.setItem(GROQ_SKIP_KEY, String(Date.now() + minutes * 60 * 1000));
+    } catch {
+      /* ignore */
+    }
+  }
+
   function getProviders() {
     const cfg = window.TNEWS_AI_CONFIG;
     if (!cfg || typeof cfg !== "object") return [];
 
+    let list = [];
     if (Array.isArray(cfg.providers)) {
-      return cfg.providers.map(normalizeProvider).filter(Boolean);
+      list = cfg.providers.map(normalizeProvider).filter(Boolean);
+    } else {
+      const primary = normalizeProvider(cfg);
+      if (primary) list.push(primary);
+      const fb = normalizeProvider(cfg.fallback);
+      if (fb && !list.some((p) => p.id === fb.id)) list.push(fb);
     }
 
-    const list = [];
-    const primary = normalizeProvider(cfg);
-    if (primary) list.push(primary);
-    const fb = normalizeProvider(cfg.fallback);
-    if (fb && !list.some((p) => p.id === fb.id)) list.push(fb);
+    const gemini = list.find((p) => p.id === "gemini");
+    const groq = list.find((p) => p.id === "groq");
+    if (gemini && groq) {
+      list = [gemini, groq];
+    }
+
+    if (Date.now() < getGroqSkipUntil()) {
+      list = list.filter((p) => p.id !== "groq");
+    }
+
     return list;
   }
 
@@ -78,18 +107,12 @@
 
   function getProviderLabel() {
     const ids = getProviders().map((p) => p.id);
-    if (ids.includes("groq") && ids.includes("gemini")) return "Groq + Gemini";
+    if (ids.includes("gemini") && ids.includes("groq")) return "Gemini + Groq";
     if (ids.includes("gemini")) return "Gemini AI";
     if (ids.includes("groq")) return "Groq AI";
     return "AI";
   }
-
-  let rateLimitedUntil = 0;
   const SUMMARY_CACHE_PREFIX = "tnews-summary:";
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
 
   function isRateLimitError(message) {
     return /rate limit|429|tokens per day|too many requests|quota|resource exhausted/i.test(
@@ -98,20 +121,18 @@
   }
 
   function setRateLimited(seconds, providerId) {
-    const until = Date.now() + seconds * 1000;
-    rateLimitedUntil = until;
-    if (providerId) providerRateLimits[providerId] = until;
+    if (!providerId) return;
+    providerRateLimits[providerId] = Date.now() + seconds * 1000;
+    if (providerId === "groq") skipGroqForMinutes(4);
   }
 
   function isRateLimited(providerId) {
-    if (providerId) {
-      return Date.now() < (providerRateLimits[providerId] || 0);
-    }
-    return Date.now() < rateLimitedUntil;
+    if (!providerId) return false;
+    return Date.now() < (providerRateLimits[providerId] || 0);
   }
 
   function getRateLimitWaitSec() {
-    return Math.max(0, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+    return 0;
   }
 
   function summaryCacheKey(article, langId) {
@@ -240,15 +261,9 @@ ${bodySection}`;
       return "مفتاح API غير صالح — تحقق من GROQ_API_KEY و GEMINI_API_KEY في GitHub.";
     }
     if (isRateLimitError(m)) {
-      const wait = getRateLimitWaitSec();
-      if (hasGemini) {
-        return wait > 0
-          ? `حد الاستخدام — انتظر ${wait} ثانية ثم «إعادة المحاولة» (Groq ثم Gemini).`
-          : "حد الاستخدام — جرّب «إعادة المحاولة» (يستخدم Gemini إن توفر).";
-      }
-      return wait > 0
-        ? `حد Groq — انتظر ${wait} ثانية. أضف GEMINI_API_KEY في GitHub كاحتياطي مجاني.`
-        : "حد Groq — أضف مفتاح Gemini مجاني من aistudio.google.com في GitHub Secrets.";
+      return hasGemini
+        ? "تم التبديل تلقائياً — اضغط «إعادة المحاولة» (Gemini أولاً)."
+        : "حد الاستخدام — أضف GEMINI_API_KEY في GitHub (مجاني من aistudio.google.com).";
     }
     if (/model.*decommission|no longer supported/i.test(m)) {
       return "نموذج AI تغيّر — حدّث التطبيق من GitHub.";
@@ -261,36 +276,26 @@ ${bodySection}`;
       ? provider.baseUrl
       : provider.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
 
-    const maxRetries = options?.retries ?? 1;
-    let lastErr;
-
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        return await httpPostJson(
-          url,
-          { Authorization: `Bearer ${provider.apiKey}` },
-          {
-            model: provider.model,
-            temperature: options?.temperature ?? 0.2,
-            max_tokens: options?.maxTokens ?? 1200,
-            messages,
-          },
-        );
-      } catch (err) {
-        lastErr = err;
-        if (!isRateLimitError(err.message) || attempt >= maxRetries) break;
-        setRateLimited(40, provider.id);
-        await sleep(1500 * (attempt + 1));
+    try {
+      return await httpPostJson(
+        url,
+        { Authorization: `Bearer ${provider.apiKey}` },
+        {
+          model: provider.model,
+          temperature: options?.temperature ?? 0.2,
+          max_tokens: options?.maxTokens ?? 1200,
+          messages,
+        },
+      );
+    } catch (err) {
+      if (isRateLimitError(err.message)) {
+        setRateLimited(8, provider.id);
+        const e = new Error(err.message);
+        e.code = "RATE_LIMIT";
+        throw e;
       }
-    }
-
-    if (isRateLimitError(lastErr?.message)) {
-      setRateLimited(45, provider.id);
-      const err = new Error(lastErr.message);
-      err.code = "RATE_LIMIT";
       throw err;
     }
-    throw lastErr;
   }
 
   async function requestChat(messages, options) {
@@ -308,7 +313,7 @@ ${bodySection}`;
         return await callProvider(provider, messages, options);
       } catch (err) {
         lastErr = err;
-        if (isRateLimitError(err.message)) continue;
+        if (isRateLimitError(err.message) && providers.length > 1) continue;
         if (providers.length > 1) continue;
         throw err;
       }
@@ -349,7 +354,7 @@ ${bodySection}`;
         },
         { role: "user", content: buildPrompt(article, loaded) },
       ],
-      { temperature: 0.55, maxTokens: 950, retries: 2 },
+      { temperature: 0.55, maxTokens: 950 },
     );
 
     const sourceNote = window.TnewsArticleContent.sourceLabelArabic(loaded);

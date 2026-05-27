@@ -99,61 +99,8 @@ ${JSON.stringify(items)}`;
     return new Promise((r) => setTimeout(r, ms));
   }
 
-  async function refreshForUiLang(articles, uiLang, onBatchDone) {
-    if (!window.TnewsAiSummary?.hasApiKey?.()) return { translated: 0, rateLimited: false };
-    if (window.TnewsAiSummary?.isRateLimited?.()) {
-      return { translated: 0, rateLimited: true };
-    }
-
-    const list = articles.slice(0, MAX_TRANSLATE).filter((a) => needsTranslation(a, uiLang));
-    let translated = 0;
-    let rateLimited = false;
-
-    for (let offset = 0; offset < list.length; offset += BATCH_SIZE) {
-      if (window.TnewsAiSummary?.isRateLimited?.()) {
-        rateLimited = true;
-        break;
-      }
-
-      const batch = list.slice(offset, offset + BATCH_SIZE);
-      const pending = batch.filter((a) => {
-        const c = readCache(a, uiLang);
-        if (c) {
-          a.uiDisplay = { lang: uiLang, title: c.title, summary: c.summary };
-          return false;
-        }
-        return !(a.uiDisplay?.lang === uiLang);
-      });
-
-      if (pending.length) {
-        try {
-          const rows = await translateBatch(pending, uiLang);
-          if (rows) {
-            pending.forEach((article, idx) => {
-              const row = rows.find((r) => Number(r.i) === idx) || rows[idx];
-              if (!row) return;
-              const display = {
-                title: String(row.title || article.title || "").trim(),
-                summary: String(row.summary ?? article.summary ?? "").trim(),
-              };
-              article.uiDisplay = { lang: uiLang, ...display };
-              writeCache(article, uiLang, display);
-              translated += 1;
-            });
-          }
-        } catch (err) {
-          if (window.TnewsAiSummary?.isRateLimitError?.(err.message)) {
-            rateLimited = true;
-            break;
-          }
-        }
-      }
-
-      onBatchDone?.();
-      if (offset + BATCH_SIZE < list.length) await delay(BATCH_DELAY_MS);
-    }
-
-    return { translated, rateLimited };
+  async function refreshForUiLang(_articles, _uiLang, _onBatchDone) {
+    return { translated: 0, rateLimited: false, disabled: true };
   }
 
   window.TnewsCardTranslate = {
