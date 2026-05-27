@@ -8,9 +8,24 @@ Users tap **✨ تلخيص المقال** — works with internet only.
 
 ---
 
-## Optional: cloud AI (OpenAI / Groq)
+## Optional: cloud AI with **Groq** (recommended)
 
-Only if you want higher-quality wording. Users **do not** enter a key in the app. You configure it once before building.
+Free tier, no OpenAI billing. Users **do not** enter a key in the app.
+
+### GitHub Actions (your case)
+
+1. [Settings → Secrets → Actions](https://github.com/ziedsG1/Tnewsipa/settings/secrets/actions)
+2. Add **`GROQ_API_KEY`** with your key from [console.groq.com](https://console.groq.com) (`gsk_…`)
+3. Or keep **`OPENAI_API_KEY`** secret name — paste the Groq key there; the build uses Groq URL automatically for `gsk_` keys
+4. Push to `main` → IPA includes Groq config
+
+### Local build
+
+```powershell
+$env:GROQ_API_KEY = "gsk-your-key"
+npm run ai:config
+npm run sync
+```
 
 ## Option A — Local file (easiest)
 

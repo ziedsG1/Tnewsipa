@@ -1,5 +1,10 @@
 (function () {
-  const DEFAULTS = {
+  const GROQ_DEFAULTS = {
+    baseUrl: "https://api.groq.com/openai/v1/chat/completions",
+    model: "llama-3.3-70b-versatile",
+  };
+
+  const OPENAI_DEFAULTS = {
     baseUrl: "https://api.openai.com/v1/chat/completions",
     model: "gpt-4o-mini",
   };
@@ -20,16 +25,27 @@
     const cfg = window.TNEWS_AI_CONFIG;
     if (!cfg || typeof cfg !== "object") return null;
     const apiKey = String(cfg.apiKey || "").trim();
-    if (!apiKey || apiKey.includes("PASTE_YOUR")) return null;
+    if (!apiKey || /PASTE_YOUR/i.test(apiKey)) return null;
+    const provider = String(cfg.provider || "").toLowerCase();
+    const useGroq = provider === "groq" || apiKey.startsWith("gsk_");
+    const defaults = useGroq ? GROQ_DEFAULTS : OPENAI_DEFAULTS;
     return {
+      provider: useGroq ? "groq" : "openai",
       apiKey,
-      baseUrl: String(cfg.baseUrl || DEFAULTS.baseUrl).trim(),
-      model: String(cfg.model || DEFAULTS.model).trim(),
+      baseUrl: String(cfg.baseUrl || defaults.baseUrl).trim(),
+      model: String(cfg.model || defaults.model).trim(),
     };
   }
 
   function getConfig() {
-    return getBakedConfig() || { apiKey: "", baseUrl: DEFAULTS.baseUrl, model: DEFAULTS.model };
+    return (
+      getBakedConfig() || {
+        apiKey: "",
+        provider: "",
+        baseUrl: GROQ_DEFAULTS.baseUrl,
+        model: GROQ_DEFAULTS.model,
+      }
+    );
   }
 
   function hasApiKey() {
@@ -270,6 +286,6 @@ ${bodySection}`;
     summarizeArticle,
     formatSummaryHtml,
     formatApiError,
-    defaults: DEFAULTS,
+    defaults: GROQ_DEFAULTS,
   };
 })();

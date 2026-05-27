@@ -187,7 +187,13 @@ function openAiPanel(article) {
 
   const title = article.translatedTitle || article.title || "خبر";
   aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
-  aiPanelMeta.textContent = `${displaySource(article)} · ${formatTime(article.pubDate) || "—"}`;
+  const provider =
+    window.TnewsAiSummary?.hasApiKey?.() && window.TnewsAiSummary?.getConfig?.().provider === "groq"
+      ? "Groq AI"
+      : window.TnewsAiSummary?.hasApiKey?.()
+        ? "AI"
+        : "ملخص مجاني";
+  aiPanelMeta.textContent = `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${provider}`;
   aiOpenSourceBtn.hidden = !article.link;
 
   runArticleSummary(article);
