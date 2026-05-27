@@ -94,10 +94,6 @@ function displaySource(article) {
 }
 
 function cardText(article) {
-  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
-  if (window.TnewsCardTranslate?.getDisplay) {
-    return window.TnewsCardTranslate.getDisplay(article, uiLang);
-  }
   return { title: article.title || "", summary: article.summary || "" };
 }
 
@@ -106,26 +102,7 @@ function scheduleCardTranslations() {
 }
 
 async function refreshCardTranslations() {
-  if (!window.TnewsCardTranslate?.refreshForUiLang || !articles.length) return;
-  if (window.TnewsAiSummary?.isRateLimited?.()) return;
-  if (!aiPanelEl.hidden) return;
-
-  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
-  const needsWork = articles.some((a) => window.TnewsCardTranslate.needsTranslation(a, uiLang));
-  if (!needsWork) return;
-
-  if (!window.TnewsAiSummary?.hasApiKey?.()) return;
-
-  const gen = ++cardTranslateGeneration;
-  statusEl.textContent = t("translatingCards");
-
-  const { rateLimited } = await window.TnewsCardTranslate.refreshForUiLang(articles, uiLang, () => {
-    if (gen !== cardTranslateGeneration) return;
-    renderNewsList();
-  });
-
-  if (gen === cardTranslateGeneration) updateStatusLine();
-  if (rateLimited) statusEl.textContent = t("cardsRateLimited");
+  /* Card translation disabled — summaries use article text + free translate. */
 }
 
 function updateNotifyButton() {
@@ -329,10 +306,7 @@ function translateSourceNote(note) {
 
 function buildAiPanelMeta(article) {
   const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
-  const provider = window.TnewsAiSummary?.hasApiKey?.()
-    ? window.TnewsAiSummary?.getProviderLabel?.() || "AI"
-    : t("freeSummary");
-  return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${provider}`;
+  return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${t("freeSummary")}`;
 }
 
 function openAiPanel(article) {
@@ -361,13 +335,9 @@ function closeAiPanel() {
 }
 
 function formatSummaryToHtml(text) {
-  if (window.TnewsAiSummary?.formatSummaryHtml) {
-    return window.TnewsAiSummary.formatSummaryHtml(text);
-  }
-  if (window.TnewsLocalSummary?.formatSummaryHtml) {
-    return window.TnewsLocalSummary.formatSummaryHtml(text);
-  }
-  return text;
+  return window.TnewsLocalSummary?.formatSummaryHtml
+    ? window.TnewsLocalSummary.formatSummaryHtml(text)
+    : text;
 }
 
 function unwrapSummaryResult(result) {
@@ -397,39 +367,18 @@ async function runArticleSummary(article) {
     aiPanelLoading.textContent = msg;
   };
 
-  const useAi = window.TnewsAiSummary?.hasApiKey?.();
-
   try {
-    let result;
-    if (!useAi) {
-      result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
-    } else {
-      try {
-        result = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
-      } catch (cloudErr) {
-        const msg = window.TnewsAiSummary?.formatApiError
-          ? window.TnewsAiSummary.formatApiError(cloudErr.message)
-          : cloudErr.message;
-        throw new Error(msg || cloudErr.message);
-      }
-    }
-
+    const result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
     const { text, sourceNote } = unwrapSummaryResult(result);
     aiPanelContent.innerHTML = formatSummaryToHtml(text);
     appendSourceToMeta(sourceNote);
     setAiPanelState({ loading: false, content: true, error: false, showRetry: false });
   } catch (err) {
-    const message =
-      err.code === "AI_NOT_CONFIGURED" || err.code === "GEMINI_NOT_CONFIGURED"
-        ? t("aiConfig")
-        : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || t("summaryFailed");
-    const showRetry =
-      err.code === "RATE_LIMIT" || window.TnewsAiSummary?.isRateLimitError?.(err.message);
     setAiPanelState({
       loading: false,
       content: false,
-      error: message,
-      showRetry,
+      error: err.message || t("summaryFailed"),
+      showRetry: true,
     });
   }
 }

@@ -22,17 +22,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Inject Gemini API key
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          GEMINI_MODEL: gemini-2.0-flash
-        run: |
-          if [ -n "$GEMINI_API_KEY" ]; then
-            npm run ai:config
-          else
-            echo "Add GEMINI_API_KEY in GitHub Actions secrets (aistudio.google.com)"
-          fi
-
       - name: Sync Capacitor iOS
         run: npx cap sync ios
 

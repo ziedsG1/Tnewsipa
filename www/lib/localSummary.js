@@ -1,27 +1,122 @@
 (function () {
-  function buildLocalSummary(loaded) {
+  const STOP_WORDS = new Set([
+    "في", "من", "إلى", "على", "أن", "ان", "هذا", "هذه", "التي", "الذي", "مع", "عن", "ما", "لا",
+    "تم", "قد", "كان", "the", "and", "for", "with", "from", "that", "des", "les", "une", "dans",
+  ]);
+
+  const STATUS = {
+    tn: { load: "قاعدين نجيبو المقال…", translate: "قاعدين نترجمو للدارجة/عربي…" },
+    ar: { load: "جاري تحميل المقال…", translate: "جاري الترجمة للعربية…" },
+    en: { load: "Loading article…", translate: "Translating to English…" },
+    fr: { load: "Chargement de l'article…", translate: "Traduction en français…" },
+  };
+
+  function headers() {
+    return window.TnewsTunisianStyle?.getLocalHeaders?.() || window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
+  }
+
+  function splitSentences(text) {
+    const parts = String(text || "")
+      .replace(/\s+/g, " ")
+      .split(/(?<=[.!?؟؛])\s+|\n+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 35 && s.length <= 520);
+
+    if (parts.length >= 2) return parts;
+
+    return String(text || "")
+      .replace(/\s+/g, " ")
+      .split(/(?<=،)\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length >= 40);
+  }
+
+  function tokenize(text) {
+    return String(text || "")
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}\s]/gu, " ")
+      .split(/\s+/)
+      .filter((w) => w.length > 2 && !STOP_WORDS.has(w));
+  }
+
+  function scoreSentence(sentence, titleTokens, index) {
+    const tokens = tokenize(sentence);
+    let overlap = 0;
+    for (const t of tokens) {
+      if (titleTokens.has(t)) overlap += 1;
+    }
+    const positionBonus = index === 0 ? 3 : index < 4 ? 2 : 1;
+    return overlap * 2.2 + positionBonus + Math.min(tokens.length, 12) * 0.1;
+  }
+
+  function pickTopSentences(sentences, title, maxCount) {
+    const titleTokens = new Set(tokenize(title));
+    const scored = sentences.map((sentence, index) => ({
+      sentence,
+      index,
+      score: scoreSentence(sentence, titleTokens, index),
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    return scored
+      .slice(0, maxCount)
+      .sort((a, b) => a.index - b.index)
+      .map((p) => p.sentence);
+  }
+
+  async function buildSummary(loaded, summaryLangId, onStatus) {
+    const H = headers();
+    const { title, body, fromPage } = loaded;
+    const sentences = splitSentences(body);
+
     const sourceNote = window.TnewsArticleContent?.sourceLabelArabic
       ? window.TnewsArticleContent.sourceLabelArabic(loaded)
-      : "";
+      : fromPage
+        ? H.fromArticle
+        : H.fromRss;
 
-    const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
-    return {
-      text:
-        `**${langLabel || "Gemini"} — مفتاح Gemini مطلوب**\n\n` +
-        `الملخص المترجم يعمل مع Google Gemini (مفتاح \`AIza\`).\n\n` +
-        `أضف \`GEMINI_API_KEY\` في GitHub Actions وأعد بناء الـ IPA، أو محلياً:\n` +
-        `\`$env:GEMINI_API_KEY = "AIza_..."; npm run ai:config\``,
-      fromPage: loaded.fromPage,
-      sourceNote,
-    };
+    if (!sentences.length) {
+      return {
+        text:
+          `${H.intro || "📰"}\n\n**${H.lead || ""}**\n${title}\n\n**${H.empty || ""}**`,
+        fromPage,
+        sourceNote,
+      };
+    }
+
+    let picked = pickTopSentences(sentences, title, Math.min(5, sentences.length));
+
+    if (window.TnewsFreeTranslate?.needsTranslation?.(body, summaryLangId)) {
+      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+      picked = await window.TnewsFreeTranslate.translateSentences(picked, summaryLangId, (n, total) => {
+        onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
+      });
+    }
+
+    const lead = picked[0] || title;
+    const bullets = picked.slice(1, 4);
+    const extra = picked[4];
+
+    let out = `${H.intro || "📰"}\n\n`;
+    out += `**${H.lead || ""}**\n${lead}\n\n`;
+    out += `**${H.points || ""}**\n`;
+    out += bullets.length ? bullets.map((b) => `• ${b}`).join("\n") : `• ${lead}`;
+    out += `\n\n**${H.context || ""}**\n${extra || bullets[bullets.length - 1] || lead}`;
+    out += `\n\n**${H.source || ""}**\n${sourceNote}`;
+
+    return { text: out, fromPage, sourceNote };
   }
 
   async function summarizeArticle(article, options) {
     if (!window.TnewsArticleContent?.loadFromArticlePage) {
-      throw new Error("وحدة تحميل المقال ما تهيأتش");
+      throw new Error("وحدة تحميل المقال غير متوفرة");
     }
-    const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, options?.onStatus);
-    return buildLocalSummary(loaded);
+
+    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+    const onStatus = options?.onStatus;
+    onStatus?.(STATUS[langId]?.load || STATUS.ar.load);
+
+    const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
+    return buildSummary(loaded, langId, onStatus);
   }
 
   function formatSummaryHtml(text) {
@@ -39,5 +134,6 @@
     summarizeArticle,
     formatSummaryHtml,
     isFree: true,
+    isOffline: true,
   };
 })();

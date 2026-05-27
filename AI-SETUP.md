@@ -1,26 +1,23 @@
-# Article summary (Google Gemini)
+# Article summaries (no API key)
 
-Summaries use **Google Gemini** (free tier). Users never enter a key in the app.
+Summaries are built **from the article page** on the news site. No Groq, no Gemini, no API keys in GitHub.
 
-## GitHub Actions (IPA build)
+## How it works
 
-1. [Settings → Secrets → Actions](https://github.com/ziedsG1/Tnewsipa/settings/secrets/actions)
-2. Add **`GEMINI_API_KEY`** (`AIza…` from [aistudio.google.com/apikey](https://aistudio.google.com/apikey))
-3. Push to `main` → rebuild IPA
+1. Load the article HTML from the source link.
+2. Pick the most important sentences (local algorithm).
+3. If you chose another summary language, translate those sentences via **MyMemory** (free public service, no key — needs internet only for translation step).
 
-You can remove `GROQ_API_KEY` — the app no longer uses Groq.
+## Summary languages
 
-## Local build
+Use the buttons in the summary panel: **دارجة · عربي · EN · FR**.
 
-```powershell
-cd c:\Users\zied\Tnewsipa
-$env:GEMINI_API_KEY = "AIza-your-key"
-npm run ai:config
-npm run sync
-```
+## Build IPA
 
-`www/config.ai.js` is **gitignored**.
+No AI secrets required. Push to `main` and run GitHub Actions as usual.
 
-## Security
+## Limits
 
-Keys are embedded in the IPA. Rotate on [Google AI Studio](https://aistudio.google.com) if leaked.
+- Translation quality is lower than Gemini/Groq.
+- Tunisian **derja** uses Arabic translation (approximation).
+- MyMemory has daily limits; if hit, you still see the article sentences in the original language.
