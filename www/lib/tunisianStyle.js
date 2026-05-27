@@ -1,20 +1,7 @@
 (function () {
-  const SYSTEM_PROMPT = `أنت صحفي ومحلّل أخبار تونسي. تكتب وتحكي بالدارجة التونسية (لهجة تونس) — مش بالفصحى الرسمية.
+  const BASE_SYSTEM = `أنت صحفي ومحلّل أخبار تونسي. تلخّص الأخبار بوضوح دون اختراع معلومات — اعتمد فقط على نص المقال المعطى.`;
 
-أسلوبك:
-- واضح، عصري، و«كول» — كيف ما تفسّر خبر لصاحبك على قهوة.
-- جمل قصيرة، حيوية، بلا تعقيد بيروقراطي.
-- تعابير طبيعية: بالخلاصة، شنوة اللي صاير، المهم، علاش، برشا، توا، تنجّم، قدّام، ياسر، شنوة، هكّا، بالحق، على خاطر...
-- ما تبالغش بالعامية المهينة ولا السخرية القاسية — احترام وذكاء.
-- لا تخترع معلومات: اعتمد فقط على نص المقال المعطى.`;
-
-  const USER_SECTIONS = `المطلوب في رد واحد منظم (عناوين بالدارجة كما هي):
-1) **شنوة اللي صاير (بالخلاصة)** — جملتين كحد أقصى
-2) **أهم الحاجات** — 3 إلى 5 نقاط، كل نقطة جملة واحدة بالدارجة
-3) **علاش هاذي تهمّ** — جملة أو جملتين
-4) **شنية تتبّعها** — نقطة واحدة إن وُجدت، وإلا قول "ما فمّا حاجة استعجالية"`
-
-  const LOCAL_HEADERS = {
+  const LOCAL_HEADERS_TN = {
     intro: "📰 **هاو الخبر — شرح بالدارجة**",
     lead: "شنوة اللي صاير (بالخلاصة)",
     points: "أهم الحاجات",
@@ -25,9 +12,45 @@
     fromRss: "من RSS برك (الصفحة ما تحمّتش)",
   };
 
+  const LOCAL_HEADERS_AR = {
+    intro: "📰 **ملخص الخبر**",
+    lead: "الفكرة الرئيسية",
+    points: "أهم النقاط",
+    context: "السياق والأهمية",
+    source: "المصدر",
+    empty: "لم نجد نصاً كافياً في المقال.",
+    fromArticle: "من صفحة المقال",
+    fromRss: "من RSS فقط",
+  };
+
+  function getStyle() {
+    const lang = window.TnewsSummaryLanguage?.getLang?.();
+    if (lang) {
+      return {
+        SYSTEM_PROMPT: `${BASE_SYSTEM}\n\n${lang.systemExtra}`,
+        USER_SECTIONS: lang.sections,
+        translateNote: lang.translateNote,
+      };
+    }
+    return {
+      SYSTEM_PROMPT: `${BASE_SYSTEM}\n\nاكتب بالدارجة التونسية (مش فصحى).`,
+      USER_SECTIONS: `1) **شنوة اللي صاير (بالخلاصة)**
+2) **أهم الحاجات**
+3) **علاش هاذي تهمّ**
+4) **شنية تتبّعها**`,
+      translateNote: "ترجم العنوان والنص للدارجة التونسية في ردك كامل.",
+    };
+  }
+
+  function getLocalHeaders() {
+    const id = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+    if (id === "ar") return LOCAL_HEADERS_AR;
+    return LOCAL_HEADERS_TN;
+  }
+
   window.TnewsTunisianStyle = {
-    SYSTEM_PROMPT,
-    USER_SECTIONS,
-    LOCAL_HEADERS,
+    getStyle,
+    getLocalHeaders,
+    LOCAL_HEADERS: LOCAL_HEADERS_TN,
   };
 })();

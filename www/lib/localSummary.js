@@ -1,5 +1,5 @@
 (function () {
-  const H = () => window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
+  const H = () => window.TnewsTunisianStyle?.getLocalHeaders?.() || window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
 
   const STOP_WORDS = new Set([
     "في", "من", "إلى", "على", "أن", "ان", "هذا", "هذه", "التي", "الذي", "مع", "عن", "ما", "لا",
@@ -69,6 +69,21 @@
         ? headers.fromArticle || "من المقال"
         : headers.fromRss || "من RSS";
 
+    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+    const needsAi = langId !== "tn" && langId !== "ar";
+
+    if (needsAi) {
+      const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || langId;
+      return {
+        text:
+          `**Translation requires Groq AI**\n\n` +
+          `You selected **${langLabel}**. The free offline summary stays in Arabic/Tunisian.\n\n` +
+          `Add \`GROQ_API_KEY\` in GitHub Actions or \`www/config.ai.js\` locally, then try again.`,
+        fromPage,
+        sourceNote,
+      };
+    }
+
     if (!sentences.length) {
       return {
         text:
@@ -85,12 +100,12 @@
     const bullets = top.slice(1, 5);
     const extra = top[5];
 
-    let out = `${headers.intro || "📰 الخبر بالدارجة"}\n\n`;
-    out += `_هاي أهم الفقرات من المقال — مع Groq AI يطلع شرح كامل بالدارجة._\n\n`;
-    out += `**${headers.lead || "شنوة اللي صاير"}**\n${lead}\n\n`;
-    out += `**${headers.points || "أهم الحاجات"}**\n`;
+    let out = `${headers.intro || "📰 الخبر"}\n\n`;
+    out += `_ملخص محلي — مع Groq AI يطلع شرح كامل بلغتك المختارة._\n\n`;
+    out += `**${headers.lead || "بالخلاصة"}**\n${lead}\n\n`;
+    out += `**${headers.points || "أهم النقاط"}**\n`;
     out += bullets.length ? bullets.map((b) => `• ${b}`).join("\n") : `• ${lead}`;
-    out += `\n\n**${headers.context || "علاش تهمّ"}**\n${extra || bullets[bullets.length - 1] || lead}`;
+    out += `\n\n**${headers.context || "السياق"}**\n${extra || bullets[bullets.length - 1] || lead}`;
     out += `\n\n**${headers.source || "المصدر"}**\n${sourceNote}`;
 
     return { text: out, fromPage, sourceNote };

@@ -25,6 +25,8 @@ const aiPanelLoading = document.getElementById("ai-panel-loading");
 const aiPanelContent = document.getElementById("ai-panel-content");
 const aiPanelError = document.getElementById("ai-panel-error");
 const aiOpenSourceBtn = document.getElementById("ai-open-source");
+const summaryLangBarEl = document.getElementById("summary-lang-bar");
+const aiSummaryLangBarEl = document.getElementById("ai-summary-lang-bar");
 
 function formatTime(pubDate) {
   if (!pubDate) return "";
@@ -179,21 +181,64 @@ function setAiPanelState({ loading, content, error }) {
   if (error) aiPanelError.textContent = error;
 }
 
-function openAiPanel(article) {
-  aiPanelArticle = article;
-  aiPanelEl.hidden = false;
-  aiPanelEl.setAttribute("aria-hidden", "false");
-  document.body.style.overflow = "hidden";
+function initSummaryLangBars() {
+  const langs = window.TnewsSummaryLanguage?.LANGUAGES;
+  if (!langs) return;
 
-  const title = article.translatedTitle || article.title || "خبر";
-  aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
+  const bars = [summaryLangBarEl, aiSummaryLangBarEl].filter(Boolean);
+  bars.forEach((bar) => {
+    bar.innerHTML = "";
+    Object.values(langs).forEach((lang) => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "summary-lang-btn";
+      btn.dataset.lang = lang.id;
+      btn.textContent = lang.label;
+      btn.title = lang.panelTitle;
+      btn.addEventListener("click", () => selectSummaryLang(lang.id));
+      bar.appendChild(btn);
+    });
+  });
+  syncSummaryLangButtons();
+}
+
+function syncSummaryLangButtons() {
+  const id = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+  document.querySelectorAll(".summary-lang-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.lang === id);
+  });
+}
+
+function selectSummaryLang(id) {
+  if (!window.TnewsSummaryLanguage?.setLang) return;
+  window.TnewsSummaryLanguage.setLang(id);
+  syncSummaryLangButtons();
+  if (aiPanelArticle && !aiPanelEl.hidden) {
+    runArticleSummary(aiPanelArticle);
+  }
+}
+
+function buildAiPanelMeta(article) {
+  const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
   const provider =
     window.TnewsAiSummary?.hasApiKey?.() && window.TnewsAiSummary?.getConfig?.().provider === "groq"
       ? "Groq AI"
       : window.TnewsAiSummary?.hasApiKey?.()
         ? "AI"
         : "ملخص مجاني";
-  aiPanelMeta.textContent = `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${provider}`;
+  return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${provider}`;
+}
+
+function openAiPanel(article) {
+  aiPanelArticle = article;
+  aiPanelEl.hidden = false;
+  aiPanelEl.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  syncSummaryLangButtons();
+
+  const title = article.title || "خبر";
+  aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
+  aiPanelMeta.textContent = buildAiPanelMeta(article);
   aiOpenSourceBtn.hidden = !article.link;
 
   runArticleSummary(article);
@@ -238,19 +283,34 @@ function appendSourceToMeta(sourceNote) {
 async function runArticleSummary(article) {
   aiPanelLoading.textContent = "قاعدين نجيبو المقال…";
   setAiPanelState({ loading: true, content: false, error: false });
+  if (aiPanelMeta) aiPanelMeta.textContent = buildAiPanelMeta(article);
 
   const onStatus = (msg) => {
     aiPanelLoading.textContent = msg;
   };
 
   const useCloudAi = window.TnewsAiSummary?.hasApiKey?.();
+  const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+  const needsCloudForLang = langId === "en" || langId === "fr";
 
   try {
     let result;
+    if (needsCloudForLang && !useCloudAi) {
+      throw new Error(
+        "الإنجليزية والفرنسية تحتاج Groq AI — أضف GROQ_API_KEY في GitHub أو www/config.ai.js",
+      );
+    }
+
     if (useCloudAi) {
       try {
         result = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
       } catch (cloudErr) {
+        if (needsCloudForLang) {
+          const msg = window.TnewsAiSummary?.formatApiError
+            ? window.TnewsAiSummary.formatApiError(cloudErr.message)
+            : cloudErr.message;
+          throw new Error(msg || cloudErr.message);
+        }
         onStatus("Groq مشى — نعملو ملخص محلي…");
         result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
       }
@@ -263,10 +323,14 @@ async function runArticleSummary(article) {
     appendSourceToMeta(sourceNote);
     setAiPanelState({ loading: false, content: true, error: false });
   } catch (err) {
+    const message =
+      err.code === "AI_NOT_CONFIGURED"
+        ? "أضف مفتاح Groq في config.ai.js أو سر GROQ_API_KEY على GitHub Actions"
+        : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || "تعذّر إعداد الملخص";
     setAiPanelState({
       loading: false,
       content: false,
-      error: err.message || "تعذّر إعداد الملخص — تحقق من الإنترنت",
+      error: message,
     });
   }
 }
@@ -436,6 +500,7 @@ aiOpenSourceBtn?.addEventListener("click", () => {
 (async function init() {
   try {
     initTheme();
+    initSummaryLangBars();
     if (window.TnewsNotifications?.init) {
       window.TnewsNotifications.init().catch(() => {});
       updateNotifyButton();

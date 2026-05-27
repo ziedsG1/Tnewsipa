@@ -9,6 +9,13 @@
     model: "gpt-4o-mini",
   };
 
+  const LANG_STATUS = {
+    tn: "قاعدين نحضّرو الشرح بالدارجة…",
+    ar: "جاري إعداد الملخص بالعربية…",
+    en: "Preparing English summary…",
+    fr: "Préparation du résumé en français…",
+  };
+
   function isNative() {
     return Boolean(window.Capacitor?.isNativePlatform?.());
   }
@@ -80,37 +87,57 @@
     return data;
   }
 
+  function getLangId() {
+    return window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+  }
+
+  function languageInstruction() {
+    const lang = window.TnewsSummaryLanguage?.getLang?.();
+    const style = window.TnewsTunisianStyle?.getStyle?.() || {};
+    const note = style.translateNote || lang?.translateNote || "";
+
+    const map = {
+      tn: "Write the ENTIRE response in Tunisian derja (colloquial Tunisian Arabic). Translate the headline and every quoted fact into derja.",
+      ar: "Write the ENTIRE response in Modern Standard Arabic (not derja). Translate the headline and all article excerpts into Arabic.",
+      en: "Write the ENTIRE response in English. Translate the headline and all article excerpts, quotes, and facts into English.",
+      fr: "Write the ENTIRE response in French. Translate the headline and all article excerpts, quotes, and facts into French.",
+    };
+
+    return `${map[getLangId()] || map.tn}\n${note}`;
+  }
+
   function buildPrompt(article, loaded) {
-    const title = article.translatedTitle || article.title || "";
+    const title = article.title || "";
     const source = article.sourceLabel || "";
     const topic = article.topic || "";
     const date = article.pubDate || "";
     const rss = article.summary || "";
 
-    const fromPage = loaded.fromPage && loaded.body.length >= 200;
+    const fromPage = loaded.fromPage && loaded.body.length >= 120;
     const bodySection = fromPage
-      ? `نص المقال الكامل (مُستخرج من صفحة الخبر على الموقع — هذا هو المصدر الوحيد للملخص):\n\n${loaded.body}`
-      : `تعذّر تحميل صفحة المقال. استخدم فقط هذا النص المحدود:\n${loaded.body || rss || title}`;
+      ? `Full article text (from the news page — sole source for the summary):\n\n${loaded.body}`
+      : `Could not load full page. Use only this limited text:\n${loaded.body || rss || title}`;
 
-    const sections =
-      window.TnewsTunisianStyle?.USER_SECTIONS ||
-      "لخّص بالدارجة التونسية بأقسام واضحة.";
+    const style = window.TnewsTunisianStyle?.getStyle?.() || {};
+    const sections = style.USER_SECTIONS || "Summarize in clear sections.";
 
-    return `فسّر الخبر التالي للقارئ التونسي — **بالدارجة التونسية فقط** (مش فصحى).
+    return `Summarize this Tunisia news item for the reader.
 
-قواعد صارمة:
-- اعتمد **فقط** على نص المقال أدناه من الموقع.
-- لا تخترع أسماء، أرقام، أو اقتباسات.
-- إن النص قصير، قول: "المقال قصير برك، هاذي اللي فيه."
+Strict rules:
+- Use ONLY the article text below.
+- Do not invent names, numbers, or quotes.
+- ${languageInstruction()}
+- If the text is very short, say so honestly.
 
+Required sections:
 ${sections}
 
 ---
-العنوان: ${title}
-المصدر: ${source}
-التصنيف: ${topic}
-التاريخ: ${date}
-الرابط: ${article.link || ""}
+Original headline (translate in your response): ${title}
+Source: ${source}
+Category: ${topic}
+Date: ${date}
+Link: ${article.link || ""}
 
 ${bodySection}`;
   }
@@ -125,15 +152,15 @@ ${bodySection}`;
     const m = String(message || "");
     if (/exceeded your current quota|insufficient_quota|billing/i.test(m)) {
       return (
-        "حساب OpenAI بدون رصيد أو بدون بطاقة دفع مفعّلة — ليس بالضرورة أنك استخدمت التطبيق. " +
-        "أضف رصيداً على platform.openai.com (Billing) أو أنشئ مفتاحاً جديداً إن سُرّب المفتاح القديم."
+        "حساب OpenAI بدون رصيد أو بدون بطاقة دفع مفعّلة. " +
+        "أضف رصيداً على platform.openai.com أو استخدم Groq."
       );
     }
     if (/invalid.*api.*key|incorrect api key|401/i.test(m)) {
-      return "مفتاح API غير صالح أو ملغى — أنشئ مفتاحاً جديداً على OpenAI وحدّث الإعداد.";
+      return "مفتاح API غير صالح — حدّث config.ai.js أو سر GitHub.";
     }
     if (/rate limit|429/i.test(m)) {
-      return "طلبات كثيرة جداً — انتظر دقيقة وحاول مرة أخرى.";
+      return "طلبات كثيرة — انتظر دقيقة وحاول مرة أخرى.";
     }
     return m || "تعذّر التحليل — تحقق من الإنترنت";
   }
@@ -153,11 +180,13 @@ ${bodySection}`;
 
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
 
-    onStatus?.("قاعدين نحضّرو الشرح بالدارجة…");
+    onStatus?.(LANG_STATUS[getLangId()] || LANG_STATUS.tn);
 
     const url = config.baseUrl.includes("/chat/completions")
       ? config.baseUrl
       : config.baseUrl.replace(/\/$/, "") + "/v1/chat/completions";
+
+    const style = window.TnewsTunisianStyle?.getStyle?.() || {};
 
     const data = await httpPostJson(
       url,
@@ -165,13 +194,11 @@ ${bodySection}`;
       {
         model: config.model,
         temperature: 0.55,
-        max_tokens: 900,
+        max_tokens: 950,
         messages: [
           {
             role: "system",
-            content:
-              window.TnewsTunisianStyle?.SYSTEM_PROMPT ||
-              "أجب بالدارجة التونسية فقط. كن واضحاً وقريب من الناس.",
+            content: style.SYSTEM_PROMPT || "Summarize news clearly without inventing facts.",
           },
           { role: "user", content: buildPrompt(article, loaded) },
         ],

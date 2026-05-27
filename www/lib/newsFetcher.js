@@ -1,15 +1,17 @@
 (function () {
   const FEEDS = [
-    { id: "nawaat", label: "نواة — Nawaat", url: "https://nawaat.org/feed/", locale: "ar", priority: true },
-    { id: "alqatiba", label: "الكتيبة — Al Katiba", url: "https://alqatiba.com/feed/", locale: "ar", priority: true },
-    { id: "tap-tn-ar", label: "TAP", url: "https://www.tap.info.tn/ar/rss/tunisia", locale: "ar" },
-    { id: "lapresse-tn-ar", label: "La Presse", url: "https://www.lapresse.tn/feed/", locale: "ar" },
-    { id: "mosaique-ar", label: "موزاييك", url: "https://www.mosaiquefm.net/ar/rss/", locale: "ar" },
-    { id: "businessnews", label: "Business News", url: "https://www.businessnews.com.tn/rss", locale: "fr" },
-    { id: "webdo-fr", label: "Webdo.tn", url: "https://www.webdo.tn/feed/", locale: "fr" },
+    { id: "nawaat", label: "نواة — Nawaat", url: "https://nawaat.org/feed/", locale: "ar", priority: true, independent: true },
+    { id: "alqatiba", label: "الكتيبة — Al Katiba", url: "https://alqatiba.com/feed/", locale: "ar", priority: true, independent: true },
+    { id: "tap-tn-ar", label: "TAP", url: "https://www.tap.info.tn/ar/rss/tunisia", locale: "ar", priority: false, independent: false },
+    { id: "lapresse-tn-ar", label: "La Presse", url: "https://www.lapresse.tn/feed/", locale: "ar", priority: false, independent: false },
+    { id: "shemsfm", label: "شمس FM", url: "https://www.shemsfm.net/feed/", locale: "ar", priority: false, independent: false },
+    { id: "diwanfm", label: "ديوان FM", url: "https://diwanfm.net/feed/", locale: "ar", priority: false, independent: false },
+    { id: "mosaique-ar", label: "موزاييك", url: "https://www.mosaiquefm.net/ar/rss/", locale: "ar", priority: false, independent: false },
+    { id: "businessnews", label: "Business News", url: "https://www.businessnews.com.tn/rss", locale: "fr", priority: false, independent: false },
+    { id: "webdo-fr", label: "Webdo.tn", url: "https://www.webdo.tn/feed/", locale: "fr", priority: false, independent: false },
   ];
 
-  const FEED_TIMEOUT_MS = 10000;
+  const FEED_TIMEOUT_MS = 12000;
   const REQUEST_HEADERS = {
     Accept: "application/rss+xml, application/xml, text/xml, */*",
     "User-Agent":
@@ -76,8 +78,19 @@
     return el?.textContent?.trim() || "";
   }
 
+  function childTextNs(node, localName) {
+    const el = Array.from(node.children).find((child) => child.localName === localName);
+    return el?.textContent?.trim() || "";
+  }
+
   function getItemLink(item) {
-    const links = Array.from(item.children).filter((child) => child.localName?.toLowerCase() === "link");
+    const guidEl = Array.from(item.children).find((c) => c.localName === "guid");
+    if (guidEl?.getAttribute("isPermaLink") === "true") {
+      const guid = guidEl.textContent?.trim();
+      if (guid && /^https?:\/\//i.test(guid)) return guid;
+    }
+
+    const links = Array.from(item.children).filter((child) => child.localName === "link");
     for (const linkEl of links) {
       const href = linkEl.getAttribute("href");
       if (href && /^https?:\/\//i.test(href)) return href.trim();
@@ -86,9 +99,24 @@
       const text = linkEl.textContent?.trim();
       if (text && /^https?:\/\//i.test(text)) return text;
     }
+
     const guid = childText(item, "guid");
     if (guid && /^https?:\/\//i.test(guid)) return guid;
+
+    const id = childText(item, "id");
+    if (id && /^https?:\/\//i.test(id)) return id;
+
     return "";
+  }
+
+  function getItemSummaryRaw(item) {
+    return (
+      childTextNs(item, "encoded") ||
+      childText(item, "description") ||
+      childText(item, "summary") ||
+      childText(item, "content") ||
+      ""
+    );
   }
 
   function parseRssItems(xmlText, source) {
@@ -106,11 +134,7 @@
           childText(item, "published") ||
           childText(item, "updated") ||
           null;
-        const summaryRaw =
-          childText(item, "description") ||
-          childText(item, "summary") ||
-          childText(item, "content") ||
-          "";
+        const summaryRaw = getItemSummaryRaw(item);
         const topicKey = inferTopicKey(title);
 
         return {
@@ -124,6 +148,8 @@
           topic: TOPIC_AR[topicKey],
           topicKey,
           locale: source.locale,
+          priority: Boolean(source.priority),
+          independent: Boolean(source.independent),
         };
       })
       .filter((a) => a.title && a.link);
@@ -168,7 +194,7 @@
       try {
         return await nativeHttpGet(url);
       } catch {
-        /* fall through to fetch */
+        /* fall through */
       }
     }
     return webFetchGet(url);
@@ -183,6 +209,14 @@
     }
   }
 
+  function articleSortScore(article) {
+    let score = 0;
+    if (article.independent) score += 100000;
+    if (article.priority) score += 50000;
+    const ts = article.pubDate ? Date.parse(article.pubDate) : 0;
+    return score + (Number.isNaN(ts) ? 0 : ts / 1000);
+  }
+
   async function fetchNewsArticles(maxAgeDays = 7) {
     const batches = await Promise.all(FEEDS.map(fetchFeed));
     const seen = new Set();
@@ -193,11 +227,7 @@
         seen.add(a.link);
         return true;
       })
-      .sort((a, b) => {
-        const ta = a.pubDate ? Date.parse(a.pubDate) : 0;
-        const tb = b.pubDate ? Date.parse(b.pubDate) : 0;
-        return tb - ta;
-      });
+      .sort((a, b) => articleSortScore(b) - articleSortScore(a));
 
     const articles = filterWeekArticles(sorted, maxAgeDays).slice(0, 100);
 
@@ -210,5 +240,5 @@
     };
   }
 
-  window.TnewsNewsFetcher = { fetchNewsArticles };
+  window.TnewsNewsFetcher = { fetchNewsArticles, FEEDS };
 })();
