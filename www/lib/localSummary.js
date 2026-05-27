@@ -68,11 +68,17 @@
       .map((p) => p.sentence);
   }
 
+  function leadSectionTitle(author, H) {
+    const name = cleanText(author);
+    return name || H.lead || "";
+  }
+
   async function buildSummary(loaded, summaryLangId, onStatus) {
     const H = headers();
     const title = cleanText(loaded.title);
     const body = cleanText(loaded.body);
     const fromPage = loaded.fromPage;
+    const sourceLangHint = loaded.locale || loaded.sourceLang || "";
     const sentences = splitSentences(body);
 
     const sourceNote = window.TnewsArticleContent?.sourceLabelArabic
@@ -81,10 +87,12 @@
         ? H.fromArticle
         : H.fromRss;
 
+    const sectionLead = leadSectionTitle(loaded.author, H);
+
     if (!sentences.length) {
       return {
         text:
-          `${H.intro || "📰"}\n\n**${H.lead || ""}**\n${title}\n\n**${H.empty || ""}**`,
+          `${H.intro || "📰"}\n\n**${sectionLead}**\n${title}\n\n**${H.empty || ""}**`,
         fromPage,
         sourceNote,
       };
@@ -92,11 +100,17 @@
 
     let picked = pickTopSentences(sentences, title, Math.min(5, sentences.length));
 
-    if (window.TnewsFreeTranslate?.needsTranslation?.(body, summaryLangId)) {
+    const translateOpts = { sourceLang: sourceLangHint };
+    if (window.TnewsFreeTranslate?.needsTranslation?.(body, summaryLangId, sourceLangHint)) {
       onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
-      picked = await window.TnewsFreeTranslate.translateSentences(picked, summaryLangId, (n, total) => {
-        onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
-      });
+      picked = await window.TnewsFreeTranslate.translateSentences(
+        picked,
+        summaryLangId,
+        (n, total) => {
+          onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
+        },
+        translateOpts,
+      );
     }
 
     const lead = picked[0] || title;
@@ -104,7 +118,7 @@
     const extra = picked[4];
 
     let out = `${H.intro || "📰"}\n\n`;
-    out += `**${H.lead || ""}**\n${lead}\n\n`;
+    out += `**${sectionLead}**\n${lead}\n\n`;
     out += `**${H.points || ""}**\n`;
     out += bullets.length ? bullets.map((b) => `• ${b}`).join("\n") : `• ${lead}`;
     out += `\n\n**${H.context || ""}**\n${extra || bullets[bullets.length - 1] || lead}`;

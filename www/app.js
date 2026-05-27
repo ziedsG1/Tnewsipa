@@ -30,6 +30,7 @@
       id: a.id,
       title: a.title || "",
       link: a.link || "",
+      author: a.author || "",
       sourceLabel: a.sourceLabel || "",
       sourceId: a.sourceId,
       pubDate: a.pubDate || null,

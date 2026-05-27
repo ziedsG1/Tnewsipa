@@ -190,6 +190,105 @@
     return "";
   }
 
+  function normalizeAuthorName(raw) {
+    let s = stripHtml(String(raw || ""))
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!s) return "";
+
+    s = s
+      .replace(/^[Bb]y\s+/i, "")
+      .replace(/^بواسطة\s+/i, "")
+      .replace(/^بقلم\s+/i, "")
+      .replace(/^كتب(?:ها)?\s+/i, "")
+      .replace(/^written\s+by\s+/i, "")
+      .replace(/^par\s+/i, "");
+
+    const paren = s.match(/\(([^)]+)\)/);
+    if (s.includes("@") && paren) s = paren[1].trim();
+    else if (s.includes("@")) {
+      const before = s.split("@")[0].trim();
+      if (before.length >= 2) s = before;
+    }
+
+    if (s.length < 2 || s.length > 90) return "";
+    if (/^(admin|unknown|redaction|rédaction|تحرير|مجهول|anon)/i.test(s)) return "";
+    return s;
+  }
+
+  function authorFromJsonLd(doc) {
+    const scripts = doc.querySelectorAll('script[type="application/ld+json"]');
+    for (const script of scripts) {
+      try {
+        const data = JSON.parse(script.textContent || "");
+        const items = Array.isArray(data) ? data : [data];
+        for (const item of items) {
+          const types = String(item["@type"] || "").toLowerCase();
+          if (!types.includes("article") && !types.includes("newsarticle") && !types.includes("blogposting")) {
+            continue;
+          }
+          const author = item.author;
+          if (typeof author === "string") {
+            const n = normalizeAuthorName(author);
+            if (n) return n;
+          }
+          if (author && typeof author === "object") {
+            const list = Array.isArray(author) ? author : [author];
+            for (const a of list) {
+              const n = normalizeAuthorName(a.name || a.url || "");
+              if (n) return n;
+            }
+          }
+        }
+      } catch {
+        /* next */
+      }
+    }
+    return "";
+  }
+
+  function extractAuthor(doc) {
+    const jsonLd = authorFromJsonLd(doc);
+    if (jsonLd) return jsonLd;
+
+    const metaAuthor =
+      doc.querySelector('meta[property="article:author"]')?.getAttribute("content") ||
+      doc.querySelector('meta[name="author"]')?.getAttribute("content") ||
+      doc.querySelector('meta[property="og:article:author"]')?.getAttribute("content");
+    const fromMeta = normalizeAuthorName(metaAuthor);
+    if (fromMeta) return fromMeta;
+
+    const selectors = [
+      "[rel='author']",
+      "[itemprop='author']",
+      ".author-name",
+      ".post-author",
+      ".entry-author",
+      ".byline a",
+      ".byline",
+      ".article-author",
+      ".author a",
+      ".author",
+      ".tdb-author-name",
+      ".jeg_post_author",
+    ];
+
+    for (const sel of selectors) {
+      const el = doc.querySelector(sel);
+      if (!el) continue;
+      const n = normalizeAuthorName(el.textContent || el.getAttribute("content") || "");
+      if (n) return n;
+    }
+
+    return "";
+  }
+
+  function extractAuthorFromHtml(html) {
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    if (doc.querySelector("parsererror")) return "";
+    return extractAuthor(doc);
+  }
+
   function scoreBlock(text, minChars) {
     if (!text || text.length < minChars) return 0;
     const sentences = text.split(/(?<=[.!?؟])\s+/).filter((s) => s.length > 35);
@@ -261,67 +360,83 @@
     const title = article.title || "";
     const link = article.link || "";
     const rss = article.summary || "";
+    const rssAuthor = normalizeAuthorName(article.author || "");
+    const feedLocale = article.locale || "";
     const handler = siteHandlerForUrl(link);
     const minFull = handler?.minFullChars || MIN_FULL_CHARS;
 
-    if (!link || !/^https?:\/\//i.test(link)) {
+    function result(extra) {
       return {
+        locale: feedLocale,
+        author: rssAuthor,
+        ...extra,
+      };
+    }
+
+    if (!link || !/^https?:\/\//i.test(link)) {
+      return result({
         title,
         body: rssFallbackBody(article),
         source: "rss",
         fromPage: false,
         error: "لا يوجد رابط للمقال",
-      };
+      });
     }
 
     onStatus?.("قاعدين نجيبو المقال من الموقع…");
 
     try {
       const html = await httpGetText(link);
+      const pageAuthor = extractAuthorFromHtml(html);
+      const author = pageAuthor || rssAuthor;
       const pageText = extractArticleText(html, link);
 
       if (pageText.length >= minFull) {
-        return {
+        return result({
           title,
           body: pageText,
+          author,
           source: "article",
           fromPage: true,
           url: link,
-        };
+        });
       }
 
       const combined = pageText.length >= 80 && rss ? `${pageText}\n\n${rss}` : pageText || rss;
       if (combined.length >= 100) {
-        return {
+        return result({
           title,
           body: shorten(combined, MAX_CHARS),
+          author,
           source: pageText.length >= 80 ? "article_partial" : "rss",
           fromPage: pageText.length >= 80,
           url: link,
-        };
+        });
       }
 
       const fallback = rssFallbackBody(article);
       if (fallback.length >= 60) {
-        return {
+        return result({
           title,
           body: fallback,
+          author: rssAuthor,
           source: "rss",
           fromPage: false,
           url: link,
           error: "لم يُستخرج نص كافٍ من صفحة المقال",
-        };
+        });
       }
     } catch (err) {
       const fallback = rssFallbackBody(article);
       if (fallback.length >= 60) {
-        return {
+        return result({
           title,
           body: fallback,
+          author: rssAuthor,
           source: "rss",
           fromPage: false,
           error: err.message || "تعذّر فتح صفحة المقال",
-        };
+        });
       }
       throw new Error("تعذّر تحميل المقال من الموقع — تحقق من الإنترنت أو افتح المصدر");
     }

@@ -152,6 +152,24 @@
     return "";
   }
 
+  function getItemAuthor(item) {
+    const authorEl = Array.from(item.children).find((c) => c.localName === "author");
+    if (authorEl) {
+      const name =
+        childTextNs(authorEl, "name") ||
+        childText(authorEl, "name") ||
+        authorEl.textContent?.trim() ||
+        "";
+      if (name && !name.includes("@")) return stripHtml(name);
+    }
+    return (
+      childTextNs(item, "creator") ||
+      childText(item, "author") ||
+      childText(item, "dc:creator") ||
+      ""
+    );
+  }
+
   function getItemSummaryRaw(item) {
     return (
       childTextNs(item, "encoded") ||
@@ -179,11 +197,13 @@
           null;
         const summaryRaw = getItemSummaryRaw(item);
         const topicKey = inferTopicKey(title);
+        const author = getItemAuthor(item);
 
         return {
           id: `${source.id}:${link || title}:${index}`,
           title,
           link,
+          author: stripHtml(author),
           sourceLabel: source.label,
           sourceId: source.id,
           pubDate,

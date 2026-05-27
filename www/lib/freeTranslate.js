@@ -44,22 +44,30 @@
   }
 
   function detectLang(text) {
-    const sample = decodeReadableText(text).slice(0, 800);
+    const sample = decodeReadableText(text).slice(0, 1200);
     const arChars = (sample.match(/[\u0600-\u06FF]/g) || []).length;
     const letters = sample.replace(/\s/g, "").length || 1;
-    if (arChars / letters > 0.28) return "ar";
+    if (arChars / letters > 0.22) return "ar";
     if (/[éèêëàâùûçœæ«»]/i.test(sample) || /\b(le|la|les|des|une|dans|pour)\b/i.test(sample)) {
       return "fr";
     }
     return "en";
   }
 
+  function resolveSourceLang(text, hint) {
+    const h = String(hint || "").toLowerCase();
+    if (h === "ar") return "ar";
+    if (h === "fr") return "fr";
+    if (h === "en") return "en";
+    return detectLang(text);
+  }
+
   function targetCode(summaryLangId) {
     return TARGET[summaryLangId] || "ar";
   }
 
-  function needsTranslation(body, summaryLangId) {
-    const from = detectLang(body);
+  function needsTranslation(body, summaryLangId, sourceLangHint) {
+    const from = resolveSourceLang(body, sourceLangHint);
     const to = targetCode(summaryLangId);
     if (summaryLangId === "tn") return from !== "ar";
     return from !== to;
@@ -89,6 +97,27 @@
     return res.json();
   }
 
+  async function httpGetTextUrl(fullUrl) {
+    if (window.Capacitor?.isNativePlatform?.()) {
+      const http = window.Capacitor?.Plugins?.CapacitorHttp;
+      if (http?.get) {
+        const res = await http.get({
+          url: fullUrl,
+          responseType: "text",
+          readTimeout: 25000,
+          connectTimeout: 25000,
+        });
+        if (res.status >= 200 && res.status < 300) {
+          return typeof res.data === "string" ? res.data : String(res.data ?? "");
+        }
+        throw new Error(`HTTP ${res.status}`);
+      }
+    }
+    const res = await fetch(fullUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
   async function translateViaMyMemory(text, from, to) {
     const plain = decodeReadableText(text).slice(0, MAX_CHARS);
     const data = await httpGetJson("https://api.mymemory.translated.net/get", {
@@ -105,6 +134,35 @@
     if (looksPercentEncoded(out)) {
       throw new Error("encoded response");
     }
+
+    const unchanged = out === plain;
+    const sameScript =
+      from === "ar" &&
+      to !== "ar" &&
+      (out.match(/[\u0600-\u06FF]/g) || []).length > (out.replace(/\s/g, "").length || 1) * 0.2;
+    if (unchanged || sameScript) {
+      throw new Error("no translation");
+    }
+
+    return out;
+  }
+
+  async function translateViaGtx(text, from, to) {
+    const plain = decodeReadableText(text).slice(0, MAX_CHARS);
+    const url =
+      "https://translate.googleapis.com/translate_a/single" +
+      `?client=gtx&sl=${encodeURIComponent(from)}&tl=${encodeURIComponent(to)}&dt=t` +
+      `&q=${encodeURIComponent(plain)}`;
+
+    const raw = await httpGetTextUrl(url);
+    const data = JSON.parse(raw);
+    const parts = (data[0] || []).map((row) => row && row[0]).filter(Boolean);
+    const out = decodeReadableText(parts.join("").trim());
+    if (!out) throw new Error("empty gtx");
+    if (from === "ar" && to !== "ar") {
+      const arRatio = (out.match(/[\u0600-\u06FF]/g) || []).length / (out.replace(/\s/g, "").length || 1);
+      if (arRatio > 0.35) throw new Error("still arabic");
+    }
     return out;
   }
 
@@ -118,20 +176,35 @@
       /* ignore */
     }
 
-    const translated = await translateViaMyMemory(clean, from, to);
-    try {
-      sessionStorage.setItem(key, translated);
-    } catch {
-      /* ignore */
+    const providers = [
+      () => translateViaMyMemory(clean, from, to),
+      () => translateViaGtx(clean, from, to),
+    ];
+
+    let lastErr = null;
+    for (const run of providers) {
+      try {
+        const translated = await run();
+        try {
+          sessionStorage.setItem(key, translated);
+        } catch {
+          /* ignore */
+        }
+        return translated;
+      } catch (err) {
+        lastErr = err;
+      }
     }
-    return translated;
+    throw lastErr || new Error("translate failed");
   }
 
-  async function translateSentences(sentences, summaryLangId, onProgress) {
+  async function translateSentences(sentences, summaryLangId, onProgress, options = {}) {
     const cleaned = sentences.map((s) => decodeReadableText(s));
-    const from = detectLang(cleaned.join(" "));
+    const hint = options.sourceLang || options.locale || "";
+    const from = resolveSourceLang(cleaned.join(" "), hint);
     const to = targetCode(summaryLangId);
-    if (!needsTranslation(cleaned.join(" "), summaryLangId)) {
+
+    if (!needsTranslation(cleaned.join(" "), summaryLangId, hint)) {
       return cleaned;
     }
 
@@ -149,6 +222,7 @@
 
   window.TnewsFreeTranslate = {
     detectLang,
+    resolveSourceLang,
     needsTranslation,
     translateSentences,
     decodeReadableText,
