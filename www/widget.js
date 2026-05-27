@@ -25,8 +25,11 @@ const aiPanelLoading = document.getElementById("ai-panel-loading");
 const aiPanelContent = document.getElementById("ai-panel-content");
 const aiPanelError = document.getElementById("ai-panel-error");
 const aiOpenSourceBtn = document.getElementById("ai-open-source");
-const summaryLangBarEl = document.getElementById("summary-lang-bar");
+const uiLangBarEl = document.getElementById("ui-lang-bar");
 const aiSummaryLangBarEl = document.getElementById("ai-summary-lang-bar");
+const summaryLangLabelEl = document.getElementById("summary-lang-label");
+
+const t = (key, vars) => (window.TnewsUi?.t ? window.TnewsUi.t(key, vars) : key);
 
 function formatTime(pubDate) {
   if (!pubDate) return "";
@@ -38,19 +41,17 @@ function formatTime(pubDate) {
   const startOfArticle = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const dayDiff = Math.round((startOfToday - startOfArticle) / 86400000);
 
-  const clock = date.toLocaleString("ar-TN", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+  const fmt = window.TnewsUi?.formatLocaleDate || ((d, o) => d.toLocaleString("ar-TN", o));
+  const clock = fmt(date, { hour: "2-digit", minute: "2-digit" });
 
-  if (dayDiff === 0) return `اليوم ${clock}`;
-  if (dayDiff === 1) return `أمس ${clock}`;
+  if (dayDiff === 0) return `${t("today")} ${clock}`;
+  if (dayDiff === 1) return `${t("yesterday")} ${clock}`;
   if (dayDiff < 7) {
-    const weekday = date.toLocaleString("ar-TN", { weekday: "long" });
+    const weekday = fmt(date, { weekday: "long" });
     return `${weekday} ${clock}`;
   }
 
-  return date.toLocaleString("ar-TN", {
+  return fmt(date, {
     day: "numeric",
     month: "short",
     hour: "2-digit",
@@ -63,15 +64,15 @@ function formatUpdatedAgo(iso) {
   const diffMs = Date.now() - Date.parse(iso);
   if (Number.isNaN(diffMs) || diffMs < 0) return "";
   const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return "الآن";
-  if (mins < 60) return `منذ ${mins} د`;
+  if (mins < 1) return t("now");
+  if (mins < 60) return t("agoMin", { n: mins });
   const hours = Math.floor(mins / 60);
-  return `منذ ${hours} س`;
+  return t("agoHour", { n: hours });
 }
 
 function updateStatusLine() {
   const updated = formatUpdatedAgo(lastFetchedAt);
-  statusEl.textContent = updated ? `أخبار الأسبوع · ${updated}` : "أخبار الأسبوع";
+  statusEl.textContent = updated ? `${t("weekNews")} · ${updated}` : t("weekNews");
 }
 
 function escapeHtml(text) {
@@ -93,7 +94,7 @@ function updateNotifyButton() {
   if (!notifyBtn || !window.TnewsNotifications) return;
   const on = window.TnewsNotifications.isEnabled();
   notifyBtn.classList.toggle("active", on);
-  notifyBtn.title = on ? "إيقاف الإشعارات" : "تفعيل الإشعارات";
+  notifyBtn.title = on ? t("notifyOn") : t("notifyOff");
 }
 
 async function toggleNotifications() {
@@ -101,12 +102,12 @@ async function toggleNotifications() {
   const enabled = await window.TnewsNotifications.toggle();
   updateNotifyButton();
   if (enabled) {
-    statusEl.textContent = "الإشعارات مفعّلة — عنوان + وقت";
+    statusEl.textContent = t("notifyEnabled");
     const payload = articles.length ? { articles } : null;
     if (payload) await window.TnewsNotifications.onNewsUpdated(payload);
     setTimeout(updateStatusLine, 2500);
   } else {
-    statusEl.textContent = "الإشعارات متوقفة";
+    statusEl.textContent = t("notifyDisabled");
     setTimeout(updateStatusLine, 2000);
   }
 }
@@ -128,7 +129,7 @@ async function loadWeather() {
     weatherTextEl.textContent = `${w.city} · ${w.temp}° · ${w.label}`;
     weatherIconEl.textContent = weatherEmoji(w.label);
   } catch {
-    weatherTextEl.textContent = "تونس · الطقس غير متاح";
+    weatherTextEl.textContent = t("weatherUnavailable");
     weatherIconEl.textContent = "☁";
   }
 }
@@ -138,7 +139,7 @@ function applyTheme(theme) {
   document.documentElement.setAttribute("data-theme", next);
   localStorage.setItem(THEME_KEY, next);
   themeBtn.textContent = next === "dark" ? "☀" : "◐";
-  themeBtn.title = next === "dark" ? "وضع فاتح" : "وضع داكن";
+  themeBtn.title = next === "dark" ? t("themeLight") : t("themeDark");
 }
 
 function initTheme() {
@@ -153,7 +154,7 @@ function toggleTheme() {
 
 async function shareArticleAsStory(article) {
   if (!article) return;
-  statusEl.textContent = "جاري تجهيز صورة المشاركة…";
+  statusEl.textContent = t("sharePreparing");
   try {
     await window.TnewsShareCard.shareArticleImage(article);
   } finally {
@@ -181,23 +182,81 @@ function setAiPanelState({ loading, content, error }) {
   if (error) aiPanelError.textContent = error;
 }
 
-function initSummaryLangBars() {
-  const langs = window.TnewsSummaryLanguage?.LANGUAGES;
-  if (!langs) return;
+function initUiLangBar() {
+  const langs = window.TnewsUi?.UI_LANGS;
+  if (!langs || !uiLangBarEl) return;
 
-  const bars = [summaryLangBarEl, aiSummaryLangBarEl].filter(Boolean);
-  bars.forEach((bar) => {
-    bar.innerHTML = "";
-    Object.values(langs).forEach((lang) => {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "summary-lang-btn";
-      btn.dataset.lang = lang.id;
-      btn.textContent = lang.label;
-      btn.title = lang.panelTitle;
-      btn.addEventListener("click", () => selectSummaryLang(lang.id));
-      bar.appendChild(btn);
-    });
+  uiLangBarEl.setAttribute("aria-label", t("pageLangAria"));
+  uiLangBarEl.innerHTML = "";
+  Object.values(langs).forEach((lang) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "ui-lang-btn";
+    btn.dataset.lang = lang.id;
+    btn.textContent = lang.label;
+    btn.addEventListener("click", () => selectUiLang(lang.id));
+    uiLangBarEl.appendChild(btn);
+  });
+  syncUiLangButtons();
+}
+
+function syncUiLangButtons() {
+  const id = window.TnewsUi?.getUiLangId?.() || "ar";
+  document.querySelectorAll(".ui-lang-btn").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.lang === id);
+  });
+}
+
+function selectUiLang(id) {
+  if (!window.TnewsUi?.setUiLang) return;
+  window.TnewsUi.setUiLang(id);
+  window.TnewsUi.applyDocumentLocale();
+  applyStaticUi();
+  syncUiLangButtons();
+  updateNotifyButton();
+  updateStatusLine();
+  renderNewsList();
+  if (aiPanelArticle && !aiPanelEl.hidden) {
+    aiPanelMeta.textContent = buildAiPanelMeta(aiPanelArticle);
+  }
+  loadWeather().catch(() => {});
+}
+
+function applyStaticUi() {
+  if (notifyBtn) notifyBtn.title = t("notify");
+  if (shareBtn) shareBtn.title = t("share");
+  if (refreshBtn) refreshBtn.title = t("refresh");
+  if (themeBtn) {
+    const current = document.documentElement.getAttribute("data-theme") || "dark";
+    themeBtn.title = current === "dark" ? t("themeLight") : t("themeDark");
+  }
+  if (uiLangBarEl) uiLangBarEl.setAttribute("aria-label", t("pageLangAria"));
+  if (summaryLangLabelEl) summaryLangLabelEl.textContent = t("summaryLangHint");
+  if (aiSummaryLangBarEl) aiSummaryLangBarEl.setAttribute("aria-label", t("summaryLangAria"));
+  if (aiPanelClose) aiPanelClose.title = t("aiClose");
+  if (aiOpenSourceBtn) aiOpenSourceBtn.textContent = t("aiOpenSource");
+  if (statusEl && !lastFetchedAt) statusEl.textContent = t("statusLoading");
+  if (weatherTextEl && weatherTextEl.textContent.includes("…")) {
+    weatherTextEl.textContent = t("weatherLoading");
+  }
+  updateNotifyButton();
+}
+
+function initSummaryLangBar() {
+  const langs = window.TnewsSummaryLanguage?.LANGUAGES;
+  if (!langs || !aiSummaryLangBarEl) return;
+
+  aiSummaryLangBarEl.setAttribute("aria-label", t("summaryLangAria"));
+  aiSummaryLangBarEl.innerHTML = "";
+  Object.values(langs).forEach((lang) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "summary-lang-btn";
+    btn.dataset.lang = lang.id;
+    btn.textContent = lang.label;
+    btn.title = lang.panelTitle;
+    btn.addEventListener("click", () => selectSummaryLang(lang.id));
+    aiSummaryLangBarEl.appendChild(btn);
   });
   syncSummaryLangButtons();
 }
@@ -213,9 +272,18 @@ function selectSummaryLang(id) {
   if (!window.TnewsSummaryLanguage?.setLang) return;
   window.TnewsSummaryLanguage.setLang(id);
   syncSummaryLangButtons();
+  renderNewsList();
   if (aiPanelArticle && !aiPanelEl.hidden) {
     runArticleSummary(aiPanelArticle);
   }
+}
+
+function translateSourceNote(note) {
+  if (!note) return "";
+  if (note.includes("من المقال نفسه") || note.includes("From full")) return t("fromArticle");
+  if (note.includes("جزء") || note.includes("partial") || note.includes("partiel")) return t("fromArticlePartial");
+  if (note.includes("RSS")) return t("fromRss");
+  return note;
 }
 
 function buildAiPanelMeta(article) {
@@ -225,7 +293,7 @@ function buildAiPanelMeta(article) {
       ? "Groq AI"
       : window.TnewsAiSummary?.hasApiKey?.()
         ? "AI"
-        : "ملخص مجاني";
+        : t("freeSummary");
   return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${provider}`;
 }
 
@@ -235,6 +303,7 @@ function openAiPanel(article) {
   aiPanelEl.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
   syncSummaryLangButtons();
+  if (summaryLangLabelEl) summaryLangLabelEl.textContent = t("summaryLangHint");
 
   const title = article.title || "خبر";
   aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
@@ -275,13 +344,14 @@ function unwrapSummaryResult(result) {
 
 function appendSourceToMeta(sourceNote) {
   if (!sourceNote || !aiPanelMeta) return;
-  if (!aiPanelMeta.textContent.includes(sourceNote)) {
-    aiPanelMeta.textContent = `${aiPanelMeta.textContent} · ${sourceNote}`;
+  const label = translateSourceNote(sourceNote);
+  if (!aiPanelMeta.textContent.includes(label)) {
+    aiPanelMeta.textContent = `${aiPanelMeta.textContent} · ${label}`;
   }
 }
 
 async function runArticleSummary(article) {
-  aiPanelLoading.textContent = "قاعدين نجيبو المقال…";
+  aiPanelLoading.textContent = t("aiFetching");
   setAiPanelState({ loading: true, content: false, error: false });
   if (aiPanelMeta) aiPanelMeta.textContent = buildAiPanelMeta(article);
 
@@ -296,9 +366,7 @@ async function runArticleSummary(article) {
   try {
     let result;
     if (needsCloudForLang && !useCloudAi) {
-      throw new Error(
-        "الإنجليزية والفرنسية تحتاج Groq AI — أضف GROQ_API_KEY في GitHub أو www/config.ai.js",
-      );
+      throw new Error(t("groqNeedsKey"));
     }
 
     if (useCloudAi) {
@@ -311,7 +379,7 @@ async function runArticleSummary(article) {
             : cloudErr.message;
           throw new Error(msg || cloudErr.message);
         }
-        onStatus("Groq مشى — نعملو ملخص محلي…");
+        onStatus(t("groqFallback"));
         result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
       }
     } else {
@@ -325,8 +393,8 @@ async function runArticleSummary(article) {
   } catch (err) {
     const message =
       err.code === "AI_NOT_CONFIGURED"
-        ? "أضف مفتاح Groq في config.ai.js أو سر GROQ_API_KEY على GitHub Actions"
-        : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || "تعذّر إعداد الملخص";
+        ? t("groqConfig")
+        : window.TnewsAiSummary?.formatApiError?.(err.message) || err.message || t("summaryFailed");
     setAiPanelState({
       loading: false,
       content: false,
@@ -346,13 +414,13 @@ function renderNewsList() {
     articleCountEl.textContent = "";
     newsListEl.innerHTML = `
       <div class="empty-state">
-        <strong>لا توجد أخبار</strong>
-        تحقق من اتصال الإنترنت واضغط ↻ للتحديث
+        <strong>${escapeHtml(t("noNews"))}</strong>
+        ${escapeHtml(t("noNewsHint"))}
       </div>`;
     return;
   }
 
-  articleCountEl.textContent = `${articles.length} خبر`;
+  articleCountEl.textContent = t("articleCount", { n: articles.length });
   newsListEl.innerHTML = articles
     .map(
       (article, index) => `
@@ -364,16 +432,16 @@ function renderNewsList() {
       ${article.summary ? `<p class="news-card-summary">${escapeHtml(article.summary)}</p>` : ""}
       <div class="news-card-foot">
         <div class="news-card-meta">
-          <span class="topic">${escapeHtml(article.topic || "عام")}</span>
+          <span class="topic">${escapeHtml(window.TnewsUi?.topicLabel?.(article.topicKey) || article.topic || t("topicGeneral"))}</span>
           <span class="source">${escapeHtml(displaySource(article))}</span>
         </div>
-        <button type="button" class="share-article-btn" data-share-index="${index}" title="مشاركة كصورة">↗</button>
+        <button type="button" class="share-article-btn" data-share-index="${index}" title="${escapeHtml(t("shareArticle"))}">↗</button>
       </div>
       <div class="news-card-actions">
-        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ فسّرلي بالدارجة</button>
-        <button type="button" class="ai-open-link-btn" data-open-index="${index}">فتح المقال في المصدر</button>
+        <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">${escapeHtml(window.TnewsSummaryLanguage?.getAnalyzeBtnLabel?.() || "✨")}</button>
+        <button type="button" class="ai-open-link-btn" data-open-index="${index}">${escapeHtml(t("openSource"))}</button>
       </div>
-      <p class="news-card-hint">اضغط مرة · ✨ شرح كول بالدارجة من المقال</p>
+      <p class="news-card-hint">${escapeHtml(t("cardHint"))}</p>
     </article>`,
     )
     .join("");
@@ -415,7 +483,7 @@ function renderNewsList() {
       try {
         await shareArticleAsStory(article);
       } catch {
-        statusEl.textContent = "تعذّرت المشاركة";
+        statusEl.textContent = t("shareFailed");
         setTimeout(updateStatusLine, 2000);
       }
     });
@@ -425,7 +493,7 @@ function renderNewsList() {
 function applyPayload(payload) {
   if (!payload?.articles?.length) {
     articles = [];
-    statusEl.textContent = "لا توجد أخبار — اضغط ↻";
+    statusEl.textContent = t("noNewsRefresh");
     renderNewsList();
     return;
   }
@@ -441,11 +509,11 @@ function applyPayload(payload) {
 }
 
 async function loadNews() {
-  statusEl.textContent = "جاري التحديث…";
+  statusEl.textContent = t("statusUpdating");
   articleCountEl.textContent = "";
   try {
     if (!window.tnewsWidget) {
-      statusEl.textContent = "خطأ في التطبيق — أعد التثبيت";
+      statusEl.textContent = t("appError");
       return;
     }
     const payload = await window.tnewsWidget.loadNews();
@@ -453,12 +521,13 @@ async function loadNews() {
       applyPayload(payload);
     } else {
       articles = [];
-      const detail = payload?.loadedFeeds != null ? ` (${payload.loadedFeeds} مصادر)` : "";
-      statusEl.textContent = `لا توجد أخبار — تحقق من الإنترنت واضغط ↻${detail}`;
+      const detail =
+        payload?.loadedFeeds != null ? t("sourcesCount", { n: payload.loadedFeeds }) : "";
+      statusEl.textContent = `${t("noNewsInternet")}${detail}`;
       renderNewsList();
     }
   } catch (err) {
-    statusEl.textContent = "فشل التحديث — اضغط ↻";
+    statusEl.textContent = t("updateFailed");
     console.error("loadNews failed", err);
   }
 }
@@ -480,7 +549,7 @@ shareBtn.addEventListener("click", async (event) => {
   try {
     await shareArticleAsStory(articles[0]);
   } catch {
-    statusEl.textContent = "تعذّرت المشاركة";
+    statusEl.textContent = t("shareFailed");
     setTimeout(updateStatusLine, 2000);
   }
 });
@@ -499,14 +568,17 @@ aiOpenSourceBtn?.addEventListener("click", () => {
 
 (async function init() {
   try {
+    window.TnewsUi?.applyDocumentLocale?.();
     initTheme();
-    initSummaryLangBars();
+    initUiLangBar();
+    initSummaryLangBar();
+    applyStaticUi();
     if (window.TnewsNotifications?.init) {
       window.TnewsNotifications.init().catch(() => {});
       updateNotifyButton();
     }
     if (!window.tnewsWidget) {
-      statusEl.textContent = "خطأ في التحميل — أعد فتح التطبيق";
+      statusEl.textContent = t("loadError");
       return;
     }
     window.tnewsWidget.onNewsUpdated((payload) => {
@@ -516,7 +588,7 @@ aiOpenSourceBtn?.addEventListener("click", () => {
     await loadNews();
     loadWeather().catch(() => {});
   } catch (err) {
-    statusEl.textContent = "فشل بدء التطبيق — اضغط ↻";
+    statusEl.textContent = t("initFailed");
     console.error("init failed", err);
   }
 })();

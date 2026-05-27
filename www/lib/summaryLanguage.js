@@ -5,6 +5,7 @@
     tn: {
       id: "tn",
       label: "🇹🇳 دارجة",
+      analyzeBtn: "✨ فسّرلي بالدارجة",
       panelTitle: "الخبر بالدارجة",
       systemExtra:
         "اكتب بالدارجة التونسية (مش فصحى). الأسلوب كول وواضح كيف ما تحكي لصاحبك.",
@@ -17,6 +18,7 @@
     ar: {
       id: "ar",
       label: "عربي",
+      analyzeBtn: "✨ لخّص الخبر",
       panelTitle: "ملخص الخبر",
       systemExtra: "اكتب بالعربية الفصحى الحديثة الواضحة (ليست دارجة).",
       sections: `1) **الفكرة الرئيسية**
@@ -28,6 +30,7 @@
     en: {
       id: "en",
       label: "EN",
+      analyzeBtn: "✨ Summarize",
       panelTitle: "News summary",
       systemExtra: "Write in clear, modern English. Casual but professional tone.",
       sections: `1) **Headline summary**
@@ -39,6 +42,7 @@
     fr: {
       id: "fr",
       label: "FR",
+      analyzeBtn: "✨ Résumer",
       panelTitle: "Résumé de l'article",
       systemExtra: "Écris en français clair et moderne. Ton accessible et direct.",
       sections: `1) **L'essentiel**
@@ -66,11 +70,16 @@
     return getLangId() !== "tn";
   }
 
+  function getAnalyzeBtnLabel() {
+    return getLang().analyzeBtn || LANGUAGES.tn.analyzeBtn;
+  }
+
   window.TnewsSummaryLanguage = {
     LANGUAGES,
     getLang,
     setLang,
     getLangId,
+    getAnalyzeBtnLabel,
     needsGroqForBestResult,
   };
 })();

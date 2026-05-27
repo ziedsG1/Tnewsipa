@@ -333,6 +333,7 @@ body {
   margin-bottom: 8px;
 }
 
+.ui-lang-bar,
 .summary-lang-bar {
   display: flex;
   flex-wrap: wrap;
@@ -340,10 +341,20 @@ body {
   margin-top: 8px;
 }
 
-.summary-lang-bar--panel {
-  margin-top: 10px;
+.summary-lang-label {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
+.summary-lang-bar--panel {
+  margin-top: 6px;
+}
+
+.ui-lang-btn,
 .summary-lang-btn {
   border: 1px solid var(--border);
   border-radius: 999px;
@@ -355,6 +366,7 @@ body {
   cursor: pointer;
 }
 
+.ui-lang-btn.active,
 .summary-lang-btn.active {
   color: var(--text);
   border-color: var(--accent);
