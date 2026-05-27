@@ -12,6 +12,7 @@ const THEME_KEY = "tnews-theme";
 
 let articles = [];
 let lastFetchedAt = null;
+let newsStale = false;
 let statusTimer = null;
 let selectedIndex = null;
 let aiPanelArticle = null;
@@ -75,7 +76,9 @@ function formatUpdatedAgo(iso) {
 
 function updateStatusLine() {
   const updated = formatUpdatedAgo(lastFetchedAt);
-  statusEl.textContent = updated ? `${t("weekNews")} · ${updated}` : t("weekNews");
+  let line = updated ? `${t("weekNews")} · ${updated}` : t("weekNews");
+  if (newsStale) line = `${line} · ${t("newsStale")}`;
+  statusEl.textContent = line;
 }
 
 function escapeHtml(text) {
@@ -482,6 +485,7 @@ function applyPayload(payload) {
   articles = payload.articles.map((a) => ({ ...a, uiDisplay: undefined }));
   selectedIndex = null;
   lastFetchedAt = payload.fetchedAt || null;
+  newsStale = Boolean(payload.stale);
   updateStatusLine();
   renderNewsList();
   scheduleCardTranslations();
@@ -490,7 +494,7 @@ function applyPayload(payload) {
   }
 }
 
-async function loadNews() {
+async function loadNews(forceRefresh = false) {
   statusEl.textContent = t("statusUpdating");
   articleCountEl.textContent = "";
   try {
@@ -498,7 +502,9 @@ async function loadNews() {
       statusEl.textContent = t("appError");
       return;
     }
-    const payload = await window.tnewsWidget.loadNews();
+    const payload = forceRefresh
+      ? await window.tnewsWidget.refreshNews({ force: true })
+      : await window.tnewsWidget.loadNews();
     if (payload?.articles?.length) {
       applyPayload(payload);
     } else {
@@ -516,7 +522,7 @@ async function loadNews() {
 
 refreshBtn.addEventListener("click", (event) => {
   event.stopPropagation();
-  loadNews();
+  loadNews(true);
   loadWeather();
 });
 

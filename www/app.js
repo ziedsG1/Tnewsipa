@@ -13,6 +13,7 @@
     rotateSeconds: 8,
     refreshMinutes: 3,
     maxAgeDays: 7,
+    fetchTimeoutMs: 50000,
   };
 
   function readCache() {
@@ -24,15 +25,36 @@
     }
   }
 
+  function slimArticle(a) {
+    return {
+      id: a.id,
+      title: a.title || "",
+      link: a.link || "",
+      sourceLabel: a.sourceLabel || "",
+      sourceId: a.sourceId,
+      pubDate: a.pubDate || null,
+      summary: (a.summary || "").slice(0, 280),
+      topic: a.topic || "عام",
+      topicKey: a.topicKey,
+      locale: a.locale,
+      priority: Boolean(a.priority),
+      independent: Boolean(a.independent),
+    };
+  }
+
   function writeCache(payload) {
+    const toStore = {
+      ...payload,
+      articles: (payload.articles || []).map(slimArticle),
+    };
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(payload));
+      localStorage.setItem(CACHE_KEY, JSON.stringify(toStore));
     } catch {
       /* ignore quota errors */
     }
-    syncWidget(payload);
+    syncWidget(toStore);
     if (window.TnewsNotifications?.onNewsUpdated) {
-      Promise.resolve(window.TnewsNotifications.onNewsUpdated(payload)).catch(() => {});
+      Promise.resolve(window.TnewsNotifications.onNewsUpdated(toStore)).catch(() => {});
     }
   }
 
@@ -84,29 +106,77 @@
     };
   }
 
-  async function refreshNewsCache() {
-    let payload = null;
+  function articleTime(article) {
+    const ts = Date.parse(article?.pubDate || "");
+    return Number.isNaN(ts) ? 0 : ts;
+  }
+
+  function mergeArticles(freshList, cachedList) {
+    const byLink = new Map();
+    for (const a of cachedList || []) {
+      if (a?.link) byLink.set(a.link, a);
+    }
+    for (const a of freshList || []) {
+      if (!a?.link) continue;
+      const prev = byLink.get(a.link);
+      if (!prev || articleTime(a) >= articleTime(prev)) {
+        byLink.set(a.link, a);
+      }
+    }
+    return Array.from(byLink.values()).sort((a, b) => articleTime(b) - articleTime(a));
+  }
+
+  async function fetchFromNetwork() {
+    return Promise.race([
+      window.TnewsNewsFetcher.fetchNewsArticles(CONFIG.maxAgeDays),
+      new Promise((resolve) => setTimeout(() => resolve(null), CONFIG.fetchTimeoutMs)),
+    ]);
+  }
+
+  async function refreshNewsCache(options = {}) {
+    const cached = readCache();
+    let networkPayload = null;
+
     try {
-      payload = await Promise.race([
-        window.TnewsNewsFetcher.fetchNewsArticles(CONFIG.maxAgeDays),
-        new Promise((resolve) => setTimeout(() => resolve(null), 35000)),
-      ]);
+      networkPayload = await fetchFromNetwork();
     } catch {
-      payload = null;
+      networkPayload = null;
     }
 
-    if (!payload?.articles?.length) {
-      payload = readCache();
-      if (payload?.articles?.length) syncWidget(payload);
-    }
+    const networkOk = Boolean(networkPayload?.articles?.length);
+    const loadedFeeds = networkPayload?.loadedFeeds ?? 0;
 
-    if (payload?.articles?.length) {
-      payload = normalizePayload(payload);
-      payload.fetchedAt = new Date().toISOString();
+    if (networkOk) {
+      let articles = networkPayload.articles;
+      if (cached?.articles?.length) {
+        articles = mergeArticles(articles, cached.articles);
+      }
+      const payload = normalizePayload({
+        ...networkPayload,
+        articles,
+        fetchedAt: new Date().toISOString(),
+        stale: false,
+      });
       writeCache(payload);
+      return payload;
     }
 
-    return payload;
+    if (cached?.articles?.length) {
+      const stalePayload = normalizePayload({
+        ...cached,
+        fetchedAt: cached.fetchedAt,
+        stale: true,
+        loadedFeeds,
+      });
+      syncWidget(stalePayload);
+      return stalePayload;
+    }
+
+    if (networkPayload) {
+      return normalizePayload({ ...networkPayload, stale: true, loadedFeeds });
+    }
+
+    return null;
   }
 
   let refreshTimer = null;
@@ -148,7 +218,13 @@
       window: { width: 520, height: 220 },
     }),
 
-    loadNews: async () => {
+    loadNews: async (options = {}) => {
+      const force = Boolean(options.force);
+
+      if (force) {
+        return refreshNewsCache({ force: true });
+      }
+
       const cached = readCache();
       if (cached?.articles?.length) {
         refreshNewsCache()
@@ -156,10 +232,12 @@
             if (fresh) notifyListeners(fresh);
           })
           .catch(() => {});
-        return normalizePayload(cached);
+        return normalizePayload({ ...cached, stale: Boolean(cached.stale) });
       }
       return refreshNewsCache();
     },
+
+    refreshNews: async (options = {}) => refreshNewsCache(options),
 
     openLink: openExternalLink,
 

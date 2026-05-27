@@ -70,7 +70,9 @@
 
   async function buildSummary(loaded, summaryLangId, onStatus) {
     const H = headers();
-    const { title, body, fromPage } = loaded;
+    const title = cleanText(loaded.title);
+    const body = cleanText(loaded.body);
+    const fromPage = loaded.fromPage;
     const sentences = splitSentences(body);
 
     const sourceNote = window.TnewsArticleContent?.sourceLabelArabic

@@ -11,12 +11,55 @@
     { id: "webdo-fr", label: "Webdo.tn", url: "https://www.webdo.tn/feed/", locale: "fr", priority: false, independent: false },
   ];
 
-  const FEED_TIMEOUT_MS = 12000;
+  const FEED_TIMEOUT_MS = 18000;
+  const FEED_RETRIES = 2;
+  const FEED_BATCH_SIZE = 3;
   const REQUEST_HEADERS = {
     Accept: "application/rss+xml, application/xml, text/xml, */*",
     "User-Agent":
       "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
   };
+
+  function parsePubDateMs(pubDate) {
+    if (!pubDate) return 0;
+    const ts = Date.parse(pubDate);
+    if (!Number.isNaN(ts)) return ts;
+    const m = String(pubDate).match(
+      /(\d{4})-(\d{2})-(\d{2})(?:[T\s](\d{2}):(\d{2})(?::(\d{2}))?)?/,
+    );
+    if (m) {
+      const d = new Date(
+        Number(m[1]),
+        Number(m[2]) - 1,
+        Number(m[3]),
+        Number(m[4] || 0),
+        Number(m[5] || 0),
+        Number(m[6] || 0),
+      );
+      const t = d.getTime();
+      return Number.isNaN(t) ? 0 : t;
+    }
+    return 0;
+  }
+
+  function looksLikeRss(xmlText) {
+    const head = String(xmlText || "").slice(0, 8000).toLowerCase();
+    return (
+      head.includes("<rss") ||
+      head.includes("<feed") ||
+      head.includes("<channel") ||
+      head.includes("<item") ||
+      head.includes("<entry")
+    );
+  }
+
+  function httpBodyText(res) {
+    const d = res?.data;
+    if (typeof d === "string") return d;
+    if (d == null) return "";
+    if (typeof d === "object" && typeof d.body === "string") return d.body;
+    return String(d);
+  }
 
   const RULES = [
     { key: "sport", patterns: [/sport/i, /football/i, /كرة/i, /رياض/i] },
@@ -171,7 +214,11 @@
       throw new Error(`HTTP ${res.status}`);
     }
 
-    return typeof res.data === "string" ? res.data : String(res.data ?? "");
+    const body = httpBodyText(res);
+    if (!body || !looksLikeRss(body)) {
+      throw new Error("Not RSS XML");
+    }
+    return body;
   }
 
   async function webFetchGet(url) {
@@ -181,44 +228,77 @@
       const res = await fetch(url, {
         signal: controller.signal,
         headers: REQUEST_HEADERS,
+        cache: "no-store",
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return await res.text();
+      const body = await res.text();
+      if (!looksLikeRss(body)) throw new Error("Not RSS XML");
+      return body;
     } finally {
       clearTimeout(timer);
     }
   }
 
   async function httpGetText(url) {
+    let lastErr = null;
+    const attempts = [];
     if (window.Capacitor?.isNativePlatform?.()) {
+      attempts.push(() => nativeHttpGet(url));
+    }
+    attempts.push(() => webFetchGet(url), () => webFetchGet(url));
+
+    for (const attempt of attempts) {
       try {
-        return await nativeHttpGet(url);
-      } catch {
-        /* fall through */
+        const body = await attempt();
+        if (body && looksLikeRss(body)) return body;
+        lastErr = new Error("Not RSS XML");
+      } catch (err) {
+        lastErr = err;
       }
     }
-    return webFetchGet(url);
+    throw lastErr || new Error("fetch failed");
+  }
+
+  async function fetchFeedOnce(source) {
+    const xmlText = await httpGetText(source.url);
+    return parseRssItems(xmlText, source);
   }
 
   async function fetchFeed(source) {
-    try {
-      const xmlText = await httpGetText(source.url);
-      return parseRssItems(xmlText, source);
-    } catch {
-      return [];
+    for (let i = 0; i < FEED_RETRIES; i += 1) {
+      try {
+        const items = await fetchFeedOnce(source);
+        if (items.length) return items;
+      } catch {
+        /* retry */
+      }
+      if (i < FEED_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 400 * (i + 1)));
+      }
     }
+    return [];
+  }
+
+  async function fetchAllFeeds() {
+    const batches = [];
+    for (let i = 0; i < FEEDS.length; i += FEED_BATCH_SIZE) {
+      const chunk = FEEDS.slice(i, i + FEED_BATCH_SIZE);
+      const part = await Promise.all(chunk.map(fetchFeed));
+      batches.push(...part);
+    }
+    return batches;
   }
 
   function articleSortScore(article) {
-    let score = 0;
-    if (article.independent) score += 100000;
-    if (article.priority) score += 50000;
-    const ts = article.pubDate ? Date.parse(article.pubDate) : 0;
-    return score + (Number.isNaN(ts) ? 0 : ts / 1000);
+    const ts = parsePubDateMs(article.pubDate);
+    let score = ts;
+    if (article.independent) score += 45 * 60 * 1000;
+    if (article.priority) score += 15 * 60 * 1000;
+    return score;
   }
 
   async function fetchNewsArticles(maxAgeDays = 7) {
-    const batches = await Promise.all(FEEDS.map(fetchFeed));
+    const batches = await fetchAllFeeds();
     const seen = new Set();
     const sorted = batches
       .flat()
