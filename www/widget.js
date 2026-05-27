@@ -218,8 +218,25 @@ function formatSummaryToHtml(text) {
   return text;
 }
 
+function unwrapSummaryResult(result) {
+  if (typeof result === "string") {
+    return { text: result, sourceNote: "" };
+  }
+  return {
+    text: result?.text || "",
+    sourceNote: result?.sourceNote || "",
+  };
+}
+
+function appendSourceToMeta(sourceNote) {
+  if (!sourceNote || !aiPanelMeta) return;
+  if (!aiPanelMeta.textContent.includes(sourceNote)) {
+    aiPanelMeta.textContent = `${aiPanelMeta.textContent} · ${sourceNote}`;
+  }
+}
+
 async function runArticleSummary(article) {
-  aiPanelLoading.textContent = "جاري تحميل المقال وإعداد الملخص…";
+  aiPanelLoading.textContent = "جاري تحميل المقال من المصدر…";
   setAiPanelState({ loading: true, content: false, error: false });
 
   const onStatus = (msg) => {
@@ -229,19 +246,21 @@ async function runArticleSummary(article) {
   const useCloudAi = window.TnewsAiSummary?.hasApiKey?.();
 
   try {
-    let text;
+    let result;
     if (useCloudAi) {
       try {
-        text = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
+        result = await window.TnewsAiSummary.summarizeArticle(article, { onStatus });
       } catch (cloudErr) {
-        onStatus("تعذّر الذكاء السحابي — ملخص تلقائي محلي…");
-        text = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
+        onStatus("تعذّر Groq — ملخص من نص المقال محلياً…");
+        result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
       }
     } else {
-      text = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
+      result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
     }
 
+    const { text, sourceNote } = unwrapSummaryResult(result);
     aiPanelContent.innerHTML = formatSummaryToHtml(text);
+    appendSourceToMeta(sourceNote);
     setAiPanelState({ loading: false, content: true, error: false });
   } catch (err) {
     setAiPanelState({
@@ -290,7 +309,7 @@ function renderNewsList() {
         <button type="button" class="ai-analyze-btn" data-analyze-index="${index}">✨ تلخيص المقال</button>
         <button type="button" class="ai-open-link-btn" data-open-index="${index}">فتح المقال في المصدر</button>
       </div>
-      <p class="news-card-hint">اضغط مرة لتحديد الخبر · ✨ ملخص مجاني (بدون API)</p>
+      <p class="news-card-hint">اضغط مرة لتحديد · ✨ ملخص من نص المقال على الموقع</p>
     </article>`,
     )
     .join("");
