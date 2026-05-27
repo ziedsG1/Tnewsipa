@@ -15,17 +15,22 @@
     return window.TnewsTunisianStyle?.getLocalHeaders?.() || window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
   }
 
+  function cleanText(text) {
+    const t = window.TnewsFreeTranslate?.decodeReadableText
+      ? window.TnewsFreeTranslate.decodeReadableText(text)
+      : String(text || "");
+    return t.replace(/\s+/g, " ").trim();
+  }
+
   function splitSentences(text) {
-    const parts = String(text || "")
-      .replace(/\s+/g, " ")
+    const parts = cleanText(text)
       .split(/(?<=[.!?؟؛])\s+|\n+/)
       .map((s) => s.trim())
       .filter((s) => s.length >= 35 && s.length <= 520);
 
     if (parts.length >= 2) return parts;
 
-    return String(text || "")
-      .replace(/\s+/g, " ")
+    return cleanText(text)
       .split(/(?<=،)\s+/)
       .map((s) => s.trim())
       .filter((s) => s.length >= 40);
