@@ -54,6 +54,7 @@
       topicCulture: "ثقافة",
       topicWorld: "عالمي",
       topicTunisia: "تونس",
+      topicLocal: "محلي",
       shareArticle: "مشاركة كصورة",
       openSource: "فتح المقال في المصدر",
       cardHint: "اضغط مرة · ✨ ملخص من المقال",
@@ -119,6 +120,7 @@
       topicCulture: "ثقافة",
       topicWorld: "عالمي",
       topicTunisia: "تونس",
+      topicLocal: "محلي",
       shareArticle: "شارك كصورة",
       openSource: "افتح المقال",
       cardHint: "اضغط · ✨ ملخص من المقال",
@@ -249,6 +251,7 @@
       topicCulture: "Culture",
       topicWorld: "Monde",
       topicTunisia: "Tunisie",
+      topicLocal: "Local",
       shareArticle: "Partager en image",
       openSource: "Ouvrir l'article source",
       cardHint: "Appuyez · ✨ résumé depuis l'article",
@@ -303,6 +306,7 @@
       culture: "topicCulture",
       world: "topicWorld",
       tunisia: "topicTunisia",
+      local: "topicLocal",
       general: "topicGeneral",
     };
     return t(map[topicKey] || "topicGeneral");

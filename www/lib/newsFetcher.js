@@ -61,14 +61,22 @@
     return String(d);
   }
 
-  const RULES = [
+  const BASE_RULES = [
     { key: "sport", patterns: [/sport/i, /football/i, /كرة/i, /رياض/i] },
     { key: "economy", patterns: [/économ/i, /finance/i, /اقتصاد/i, /دينار/i] },
     { key: "politics", patterns: [/polit/i, /gouvern/i, /حكوم/i, /رئاس/i] },
     { key: "culture", patterns: [/culture/i, /ثقاف/i] },
     { key: "world", patterns: [/international/i, /monde/i, /عالم/i, /غزة/i] },
-    { key: "tunisia", patterns: [/tunisi/i, /tunis\b/i, /تونس/i, /صفاقس/i] },
   ];
+
+  function getRules() {
+    const local = window.TnewsCountries?.getCurrent?.()?.localPatterns;
+    const rules = [...BASE_RULES];
+    if (local?.length) {
+      rules.push({ key: "local", patterns: local });
+    }
+    return rules;
+  }
 
   function topicLabel(key) {
     const topics = getTopics();
@@ -91,7 +99,7 @@
   }
 
   function inferTopicKey(title) {
-    for (const { key, patterns } of RULES) {
+    for (const { key, patterns } of getRules()) {
       if (patterns.some((p) => p.test(title))) return key;
     }
     return "general";
@@ -203,7 +211,7 @@
           sourceId: source.id,
           pubDate,
           summary: shorten(stripHtml(summaryRaw)),
-          topic: TOPIC_AR[topicKey],
+          topic: topicLabel(topicKey),
           topicKey,
           locale: source.locale,
           priority: Boolean(source.priority),

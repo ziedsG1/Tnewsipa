@@ -547,6 +547,38 @@ body {
   --accent-soft: #34d399;
 }
 
+[data-country="dz"] {
+  --accent: #16a34a;
+  --accent-soft: #dc2626;
+  --chip-bg: rgba(22, 163, 74, 0.15);
+  --chip-border: rgba(22, 163, 74, 0.35);
+  --chip-text: #86efac;
+}
+
+[data-country="ma"] {
+  --accent: #b91c1c;
+  --accent-soft: #15803d;
+  --chip-bg: rgba(185, 28, 28, 0.12);
+  --chip-border: rgba(185, 28, 28, 0.3);
+  --chip-text: #fca5a5;
+}
+
+[data-country="eg"] {
+  --accent: #ca8a04;
+  --accent-soft: #1d4ed8;
+  --chip-bg: rgba(202, 138, 4, 0.15);
+  --chip-border: rgba(202, 138, 4, 0.35);
+  --chip-text: #fde047;
+}
+
+[data-country="lb"] {
+  --accent: #7c3aed;
+  --accent-soft: #059669;
+  --chip-bg: rgba(124, 58, 237, 0.15);
+  --chip-border: rgba(124, 58, 237, 0.35);
+  --chip-text: #c4b5fd;
+}
+
 .country-screen {
   display: flex;
   flex-direction: column;
@@ -566,10 +598,11 @@ html[data-country="fr"] .country-screen {
   flex: 1;
   display: flex;
   flex-direction: column;
-  justify-content: center;
-  max-width: 420px;
+  justify-content: flex-start;
+  max-width: 480px;
   margin: 0 auto;
   width: 100%;
+  padding-top: 8px;
 }
 
 .country-picker-eyebrow {
@@ -596,8 +629,9 @@ html[data-country="fr"] .country-screen {
 
 .country-grid {
   display: grid;
-  grid-template-columns: 1fr;
-  gap: 14px;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+  padding-bottom: 16px;
 }
 
 .country-card {
