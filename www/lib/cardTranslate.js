@@ -1,6 +1,6 @@
 (function () {
-  const MAX_TRANSLATE = 36;
-  const REQUEST_GAP_MS = 420;
+  const MAX_TRANSLATE = 40;
+  const REQUEST_GAP_MS = 280;
   const CACHE_PREFIX = "tnews-card-ui:";
 
   function cacheKey(article, uiLang) {
@@ -25,9 +25,8 @@
   }
 
   function needsTranslation(article, uiLang) {
-    const blob = `${article.title || ""} ${article.summary || ""}`;
     if (!window.TnewsFreeTranslate?.needsTranslation) return false;
-    return window.TnewsFreeTranslate.needsTranslation(blob, uiLang);
+    return window.TnewsFreeTranslate.needsTranslation(article, uiLang, article.locale);
   }
 
   function getDisplay(article, uiLang) {
@@ -56,11 +55,12 @@
   async function translateArticle(article, uiLang) {
     const ft = window.TnewsFreeTranslate;
     if (!ft?.translateForUi) return null;
+    const loc = article.locale;
 
-    const title = await ft.translateForUi(article.title || "", uiLang);
+    const title = await ft.translateForUi(article.title || "", uiLang, loc);
     await delay(REQUEST_GAP_MS);
     const summary = article.summary
-      ? await ft.translateForUi(article.summary, uiLang)
+      ? await ft.translateForUi(article.summary, uiLang, loc)
       : "";
 
     return {
@@ -98,7 +98,7 @@
           translated += 1;
         }
       } catch (err) {
-        if (/RATE|LIMIT|429|translate failed/i.test(String(err?.message || err))) {
+        if (/RATE|LIMIT|429|failed/i.test(String(err?.message || err))) {
           rateLimited = true;
         }
       }

@@ -104,9 +104,13 @@ function cardText(article) {
   return { title: article.title || "", summary: article.summary || "" };
 }
 
-function scheduleCardTranslations() {
+function scheduleCardTranslations(immediate = false) {
   if (cardTranslateTimer) clearTimeout(cardTranslateTimer);
-  cardTranslateTimer = setTimeout(() => refreshCardTranslations(), 800);
+  if (immediate) {
+    refreshCardTranslations();
+    return;
+  }
+  cardTranslateTimer = setTimeout(() => refreshCardTranslations(), 400);
 }
 
 async function refreshCardTranslations() {
@@ -255,7 +259,11 @@ function selectUiLang(id) {
   syncUiLangButtons();
   updateNotifyButton();
   updateStatusLine();
+  articles.forEach((a) => {
+    a.uiDisplay = undefined;
+  });
   renderNewsList();
+  scheduleCardTranslations(true);
   if (aiPanelArticle && !aiPanelEl.hidden) {
     aiPanelMeta.textContent = buildAiPanelMeta(aiPanelArticle);
   }
@@ -596,6 +604,7 @@ async function startMainApp(options = {}) {
       closeAiPanel();
       articles = [];
       lastFetchedAt = null;
+      cardTranslateGeneration += 1;
       newsLoading = true;
       statusEl.textContent = t("statusLoading");
       renderNewsList();

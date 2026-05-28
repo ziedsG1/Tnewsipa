@@ -1,8 +1,19 @@
 (function () {
   const CACHE_PREFIX = "tnews-tr:";
-  const MAX_CHARS = 480;
+  const MAX_CHARS = 450;
+  const CHUNK_CHARS = 380;
 
   const TARGET = { tn: "ar", ar: "ar", en: "en", fr: "fr" };
+  const LOCALE_LANG = {
+    ar: "ar",
+    en: "en",
+    fr: "fr",
+    es: "es",
+    de: "de",
+    it: "it",
+    pt: "pt",
+    tr: "tr",
+  };
 
   function cacheKey(text, from, to) {
     return `${CACHE_PREFIX}${from}:${to}:${text.slice(0, 120)}`;
@@ -19,30 +30,39 @@
     return "en";
   }
 
+  function articleLang(articleOrText, localeHint) {
+    if (localeHint && LOCALE_LANG[localeHint]) return LOCALE_LANG[localeHint];
+    if (typeof articleOrText === "object" && articleOrText?.locale) {
+      const loc = LOCALE_LANG[articleOrText.locale];
+      if (loc) return loc;
+    }
+    const text =
+      typeof articleOrText === "string"
+        ? articleOrText
+        : `${articleOrText?.title || ""} ${articleOrText?.summary || ""}`;
+    return detectLang(text);
+  }
+
   function targetCode(uiLangId) {
     return TARGET[uiLangId] || "ar";
   }
 
-  function needsTranslation(text, uiLangId) {
-    const from = detectLang(text);
+  function needsTranslation(articleOrText, uiLangId, localeHint) {
+    const from = articleLang(articleOrText, localeHint);
     const to = targetCode(uiLangId);
     if (uiLangId === "tn") return from !== "ar";
     return from !== to;
   }
 
   async function httpGetJson(url) {
-    if (window.TnewsHttp?.getText) {
-      const body = await window.TnewsHttp.getText(url, { Accept: "application/json" });
-      return JSON.parse(body);
-    }
     if (window.Capacitor?.isNativePlatform?.()) {
       const http = window.Capacitor?.Plugins?.CapacitorHttp;
       if (http?.get) {
         const res = await http.get({
           url,
           responseType: "json",
-          readTimeout: 20000,
-          connectTimeout: 20000,
+          readTimeout: 22000,
+          connectTimeout: 22000,
         });
         if (res.status >= 200 && res.status < 300) {
           return typeof res.data === "object" ? res.data : JSON.parse(String(res.data || "{}"));
@@ -50,9 +70,64 @@
         throw new Error(`HTTP ${res.status}`);
       }
     }
+    if (window.TnewsHttp?.getText) {
+      const body = await window.TnewsHttp.getText(url, { Accept: "application/json,*/*" });
+      return JSON.parse(body);
+    }
     const res = await fetch(url);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return res.json();
+  }
+
+  async function httpGetText(url) {
+    if (window.TnewsHttp?.getText) {
+      return window.TnewsHttp.getText(url, { Accept: "*/*" });
+    }
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.text();
+  }
+
+  function parseGtx(body) {
+    try {
+      const json = typeof body === "string" ? JSON.parse(body) : body;
+      if (!Array.isArray(json) || !Array.isArray(json[0])) return "";
+      return json[0]
+        .map((seg) => (seg && seg[0] ? seg[0] : ""))
+        .join("")
+        .trim();
+    } catch {
+      return "";
+    }
+  }
+
+  function splitChunks(text) {
+    const t = String(text || "").trim();
+    if (t.length <= CHUNK_CHARS) return [t];
+    const parts = [];
+    let rest = t;
+    while (rest.length > CHUNK_CHARS) {
+      let cut = rest.lastIndexOf(" ", CHUNK_CHARS);
+      if (cut < CHUNK_CHARS * 0.4) cut = CHUNK_CHARS;
+      parts.push(rest.slice(0, cut).trim());
+      rest = rest.slice(cut).trim();
+    }
+    if (rest) parts.push(rest);
+    return parts;
+  }
+
+  async function translateViaGtx(text, from, to) {
+    const chunks = splitChunks(text);
+    const out = [];
+    for (const chunk of chunks) {
+      if (!chunk) continue;
+      const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${encodeURIComponent(from)}&tl=${encodeURIComponent(to)}&dt=t&q=${encodeURIComponent(chunk)}`;
+      const raw = await httpGetText(url);
+      const piece = parseGtx(raw);
+      if (!piece) throw new Error("gtx failed");
+      out.push(piece);
+    }
+    return out.join(" ");
   }
 
   async function translateViaMyMemory(text, from, to) {
@@ -61,10 +136,21 @@
     const url = `https://api.mymemory.translated.net/get?q=${q}&langpair=${pair}`;
     const data = await httpGetJson(url);
     const out = data?.responseData?.translatedText;
-    if (!out || /INVALID|MYMEMORY WARNING|QUERY LENGTH|RATE LIMIT/i.test(out)) {
-      throw new Error("translate failed");
+    if (!out || /INVALID|MYMEMORY WARNING|QUERY LENGTH|RATE LIMIT|USED ALL AVAILABLE/i.test(out)) {
+      throw new Error("mymemory failed");
     }
     return out.trim();
+  }
+
+  async function translateRaw(text, from, to) {
+    const sentence = String(text || "").trim();
+    if (!sentence || from === to) return sentence;
+
+    try {
+      return await translateViaMyMemory(sentence, from, to);
+    } catch {
+      return translateViaGtx(sentence, from, to);
+    }
   }
 
   async function translateOne(text, from, to) {
@@ -79,7 +165,7 @@
       /* ignore */
     }
 
-    const translated = await translateViaMyMemory(sentence, from, to);
+    const translated = await translateRaw(sentence, from, to);
     try {
       sessionStorage.setItem(key, translated);
     } catch {
@@ -88,38 +174,20 @@
     return translated;
   }
 
-  async function translateForUi(text, uiLangId) {
-    const from = detectLang(text);
+  async function translateForUi(text, uiLangId, localeHint) {
+    const from = articleLang(text, localeHint);
     const to = targetCode(uiLangId);
-    if (!needsTranslation(text, uiLangId)) return text;
+    if (!needsTranslation(text, uiLangId, localeHint)) return text;
     return translateOne(text, from, to);
-  }
-
-  async function translateSentences(sentences, summaryLangId, onProgress) {
-    const from = detectLang(sentences.join(" "));
-    const to = targetCode(summaryLangId);
-    if (!needsTranslation(sentences.join(" "), summaryLangId)) {
-      return sentences;
-    }
-
-    const out = [];
-    for (let i = 0; i < sentences.length; i += 1) {
-      onProgress?.(i + 1, sentences.length);
-      try {
-        out.push(await translateOne(sentences[i], from, to));
-      } catch {
-        out.push(sentences[i]);
-      }
-    }
-    return out;
   }
 
   window.TnewsFreeTranslate = {
     detectLang,
+    articleLang,
     needsTranslation,
     translateOne,
     translateForUi,
-    translateSentences,
     targetCode,
+    LOCALE_LANG,
   };
 })();

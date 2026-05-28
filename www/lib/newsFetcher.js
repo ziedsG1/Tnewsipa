@@ -276,15 +276,31 @@
     return batches;
   }
 
-  function articleSortScore(article) {
+  function matchesLocal(article, country) {
+    const patterns = country?.localPatterns;
+    if (!patterns?.length) return true;
+    const hay = `${article.title || ""} ${article.summary || ""} ${article.link || ""}`;
+    return patterns.some((p) => p.test(hay));
+  }
+
+  function articleSortScore(article, country) {
     const ts = parsePubDateMs(article.pubDate);
     let score = ts;
     if (article.independent) score += 45 * 60 * 1000;
     if (article.priority) score += 15 * 60 * 1000;
+    if (country && matchesLocal(article, country)) score += 90 * 60 * 1000;
     return score;
   }
 
+  function preferLocalArticles(list, country) {
+    if (!country?.localPatterns?.length) return list;
+    const local = list.filter((a) => matchesLocal(a, country));
+    if (local.length >= 8) return local;
+    return list;
+  }
+
   async function fetchNewsArticles(maxAgeDays = 7) {
+    const country = window.TnewsCountries?.getCurrent?.();
     const batches = await fetchAllFeeds();
     const seen = new Set();
     const sorted = batches
@@ -294,9 +310,10 @@
         seen.add(a.link);
         return true;
       })
-      .sort((a, b) => articleSortScore(b) - articleSortScore(a));
+      .sort((a, b) => articleSortScore(b, country) - articleSortScore(a, country));
 
-    const articles = filterWeekArticles(sorted, maxAgeDays).slice(0, 100);
+    const localized = preferLocalArticles(sorted, country);
+    const articles = filterWeekArticles(localized, maxAgeDays).slice(0, 100);
 
     return {
       fetchedAt: new Date().toISOString(),
