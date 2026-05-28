@@ -11,8 +11,15 @@
     <title>Tnews</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <div class="country-screen" id="country-screen" hidden aria-hidden="true">
+  <body data-screen="picker">
+    <script>
+      try {
+        if (localStorage.getItem("tnews-country")) {
+          document.body.dataset.screen = "news";
+        }
+      } catch (_) {}
+    </script>
+    <div class="country-screen" id="country-screen" aria-hidden="false">
       <div class="country-screen-inner">
         <p class="country-picker-eyebrow">World News</p>
         <h1 class="country-picker-title" id="country-picker-title">Choose your country</h1>

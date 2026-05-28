@@ -103,11 +103,6 @@
       '700 56px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillStyle = colors.accent;
     ctx.fillText(String(country.brand || "Tnews").toUpperCase(), x, y);
-
-    ctx.font =
-      '400 40px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = WHITE;
-    ctx.fillText(country.flag || "", x, y + 68);
   }
 
   function drawArticleBlock(ctx, article, country, colors, topY, heroBottom) {
@@ -191,10 +186,14 @@
       ctx.roundRect(heroX, placeholderY, heroW, placeholderH, 24);
       ctx.fill();
       ctx.font =
-        '600 36px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-      ctx.fillStyle = MUTED;
+        '700 40px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillStyle = colors.accent;
       ctx.textAlign = "center";
-      ctx.fillText(country?.flag || "📰", W / 2, placeholderY + placeholderH / 2 - 24);
+      ctx.fillText(
+        String(country?.brand || "Tnews").toUpperCase(),
+        W / 2,
+        placeholderY + placeholderH / 2 - 20,
+      );
       drawArticleBlock(
         ctx,
         article,

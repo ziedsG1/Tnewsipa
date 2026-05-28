@@ -48,6 +48,28 @@ body {
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Tahoma, sans-serif;
   -webkit-tap-highlight-color: transparent;
+  overflow: hidden;
+}
+
+body[data-screen="picker"] #country-screen {
+  display: flex !important;
+}
+
+body[data-screen="picker"] #app {
+  display: none !important;
+}
+
+body[data-screen="news"] #country-screen {
+  display: none !important;
+}
+
+body[data-screen="news"] #app {
+  display: flex !important;
+}
+
+#country-screen[hidden],
+#app[hidden] {
+  display: none !important;
 }
 
 .app {
@@ -580,9 +602,15 @@ body {
 }
 
 .country-screen {
-  display: flex;
+  display: none;
   flex-direction: column;
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  width: 100%;
+  height: 100%;
   min-height: 100%;
+  overflow-y: auto;
   padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bottom) + 24px);
   background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(14, 165, 233, 0.18), transparent),
     var(--bg);

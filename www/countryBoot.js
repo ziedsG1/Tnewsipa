@@ -71,31 +71,30 @@
     updateConfirmButton();
   }
 
-  function showPicker() {
+  function setScreen(mode) {
+    document.body.dataset.screen = mode;
+
     const screen = screenEl();
     const app = appEl();
+    const isPicker = mode === "picker";
+
     if (screen) {
-      screen.hidden = false;
-      screen.setAttribute("aria-hidden", "false");
+      screen.hidden = !isPicker;
+      screen.setAttribute("aria-hidden", isPicker ? "false" : "true");
     }
     if (app) {
-      app.hidden = true;
-      app.setAttribute("aria-hidden", "true");
+      app.hidden = isPicker;
+      app.setAttribute("aria-hidden", isPicker ? "true" : "false");
     }
+  }
+
+  function showPicker() {
+    setScreen("picker");
     renderPicker();
   }
 
   function showApp() {
-    const screen = screenEl();
-    const app = appEl();
-    if (screen) {
-      screen.hidden = true;
-      screen.setAttribute("aria-hidden", "true");
-    }
-    if (app) {
-      app.hidden = false;
-      app.setAttribute("aria-hidden", "false");
-    }
+    setScreen("news");
   }
 
   function selectCountry(id) {
@@ -126,6 +125,7 @@
   function openCountryPicker() {
     pendingCountryId = window.TnewsCountries?.getSelectedId?.() || null;
     showPicker();
+    window.scrollTo(0, 0);
   }
 
   function boot() {
