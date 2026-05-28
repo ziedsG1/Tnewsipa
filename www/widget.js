@@ -30,8 +30,6 @@ const aiOpenSourceBtn = document.getElementById("ai-open-source");
 const aiRetryBtn = document.getElementById("ai-retry-btn");
 let cardTranslateTimer = null;
 const uiLangBarEl = document.getElementById("ui-lang-bar");
-const aiSummaryLangBarEl = document.getElementById("ai-summary-lang-bar");
-const summaryLangLabelEl = document.getElementById("summary-lang-label");
 
 const t = (key, vars) => (window.TnewsUi?.t ? window.TnewsUi.t(key, vars) : key);
 
@@ -251,8 +249,6 @@ function applyStaticUi() {
     themeBtn.title = current === "dark" ? t("themeLight") : t("themeDark");
   }
   if (uiLangBarEl) uiLangBarEl.setAttribute("aria-label", t("pageLangAria"));
-  if (summaryLangLabelEl) summaryLangLabelEl.textContent = t("summaryLangHint");
-  if (aiSummaryLangBarEl) aiSummaryLangBarEl.setAttribute("aria-label", t("summaryLangAria"));
   if (aiPanelClose) aiPanelClose.title = t("aiClose");
   if (aiOpenSourceBtn) aiOpenSourceBtn.textContent = t("aiOpenSource");
   if (aiRetryBtn) aiRetryBtn.textContent = t("retrySummary");
@@ -263,40 +259,11 @@ function applyStaticUi() {
   updateNotifyButton();
 }
 
-function initSummaryLangBar() {
-  const langs = window.TnewsSummaryLanguage?.LANGUAGES;
-  if (!langs || !aiSummaryLangBarEl) return;
-
-  aiSummaryLangBarEl.setAttribute("aria-label", t("summaryLangAria"));
-  aiSummaryLangBarEl.innerHTML = "";
-  Object.values(langs).forEach((lang) => {
-    const btn = document.createElement("button");
-    btn.type = "button";
-    btn.className = "summary-lang-btn";
-    btn.dataset.lang = lang.id;
-    btn.textContent = lang.label;
-    btn.title = lang.panelTitle;
-    btn.addEventListener("click", () => selectSummaryLang(lang.id));
-    aiSummaryLangBarEl.appendChild(btn);
-  });
-  syncSummaryLangButtons();
-}
-
-function syncSummaryLangButtons() {
-  const id = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
-  document.querySelectorAll(".summary-lang-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.lang === id);
-  });
-}
-
-function selectSummaryLang(id) {
-  if (!window.TnewsSummaryLanguage?.setLang) return;
-  window.TnewsSummaryLanguage.setLang(id);
-  syncSummaryLangButtons();
-  renderNewsList();
-  if (aiPanelArticle && !aiPanelEl.hidden) {
-    runArticleSummary(aiPanelArticle);
-  }
+function articleFeedLangLabel(article) {
+  const loc = article?.locale || "";
+  if (loc === "fr") return "FR";
+  if (loc === "en") return "EN";
+  return "عربي";
 }
 
 function translateSourceNote(note) {
@@ -308,8 +275,7 @@ function translateSourceNote(note) {
 }
 
 function buildAiPanelMeta(article) {
-  const langLabel = window.TnewsSummaryLanguage?.getLang?.()?.label || "";
-  return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${langLabel} · ${t("freeSummary")}`;
+  return `${displaySource(article)} · ${formatTime(article.pubDate) || "—"} · ${articleFeedLangLabel(article)} · ${t("freeSummary")}`;
 }
 
 function openAiPanel(article) {
@@ -317,9 +283,6 @@ function openAiPanel(article) {
   aiPanelEl.hidden = false;
   aiPanelEl.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
-  syncSummaryLangButtons();
-  if (summaryLangLabelEl) summaryLangLabelEl.textContent = t("summaryLangHint");
-
   const title = article.title || "خبر";
   aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
   aiPanelMeta.textContent = buildAiPanelMeta(article);
@@ -350,6 +313,7 @@ function unwrapSummaryResult(result) {
   return {
     text: result?.text || "",
     sourceNote: result?.sourceNote || "",
+    articleLang: result?.articleLang || "ar",
   };
 }
 
@@ -371,10 +335,9 @@ async function runArticleSummary(article) {
   };
 
   try {
-    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
     const result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
-    const { text, sourceNote } = unwrapSummaryResult(result);
-    const summaryDir = langId === "en" || langId === "fr" ? "ltr" : "rtl";
+    const { text, sourceNote, articleLang } = unwrapSummaryResult(result);
+    const summaryDir = articleLang === "en" || articleLang === "fr" ? "ltr" : "rtl";
     aiPanelContent.setAttribute("dir", summaryDir);
     aiPanelContent.innerHTML = formatSummaryToHtml(text);
     appendSourceToMeta(sourceNote);
@@ -566,7 +529,6 @@ aiRetryBtn?.addEventListener("click", () => {
     window.TnewsUi?.applyDocumentLocale?.();
     initTheme();
     initUiLangBar();
-    initSummaryLangBar();
     applyStaticUi();
     if (window.TnewsNotifications?.init) {
       window.TnewsNotifications.init().catch(() => {});

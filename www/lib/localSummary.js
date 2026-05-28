@@ -5,25 +5,51 @@
   ]);
 
   const STATUS = {
-    tn: { load: "قاعدين نجيبو المقال…", translate: "قاعدين نترجمو للدارجة/عربي…" },
-    ar: { load: "جاري تحميل المقال…", translate: "جاري الترجمة للعربية…" },
-    en: { load: "Loading article…", translate: "Translating to English…" },
-    fr: { load: "Chargement de l'article…", translate: "Traduction en français…" },
+    ar: "جاري تحميل المقال…",
+    fr: "Chargement de l'article…",
+    en: "Loading article…",
+    tn: "قاعدين نجيبو المقال…",
   };
 
-  function headers(summaryLangId) {
+  function cleanText(text) {
+    return String(text || "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function arabicRatio(text) {
+    const sample = String(text || "").replace(/\s/g, "");
+    if (!sample.length) return 0;
+    return (sample.match(/[\u0600-\u06FF]/g) || []).length / sample.length;
+  }
+
+  function frenchRatio(text) {
+    const sample = String(text || "").slice(0, 2500);
+    const letters = sample.replace(/\s/g, "").length || 1;
+    const frWords = (
+      sample.match(
+        /\b(le|la|les|des|du|de|un|une|dans|pour|avec|est|sont|qui|que)\b|[àâäéèêëïîôùûüçœæ]/gi,
+      ) || []
+    ).length;
+    return frWords / letters;
+  }
+
+  function articleLangId(loaded) {
+    const hint = loaded.sourceLang || loaded.locale || "";
+    if (hint === "fr" || hint === "en" || hint === "ar") return hint;
+
+    const sample = `${loaded.title || ""} ${loaded.body || ""}`;
+    if (arabicRatio(sample) > 0.12) return "ar";
+    if (frenchRatio(sample) > 0.05) return "fr";
+    return "ar";
+  }
+
+  function headers(articleLang) {
     return (
-      window.TnewsTunisianStyle?.getLocalHeaders?.(summaryLangId) ||
+      window.TnewsTunisianStyle?.getLocalHeaders?.(articleLang) ||
       window.TnewsTunisianStyle?.LOCAL_HEADERS ||
       {}
     );
-  }
-
-  function cleanText(text) {
-    const t = window.TnewsFreeTranslate?.decodeReadableText
-      ? window.TnewsFreeTranslate.decodeReadableText(text)
-      : String(text || "");
-    return t.replace(/\s+/g, " ").trim();
   }
 
   function splitSentences(text) {
@@ -72,51 +98,20 @@
       .map((p) => p.sentence);
   }
 
-  async function translateLines(lines, summaryLangId, fromLang, onStatus) {
-    const tr = window.TnewsFreeTranslate;
-    if (!tr) return lines;
-
-    const to = tr.targetCode(summaryLangId);
-    if (!tr.needsTranslation(lines.join(" "), summaryLangId, fromLang)) {
-      return lines;
-    }
-
-    onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
-    return tr.translateLines(lines, fromLang, to, (n, total) => {
-      onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
-    });
-  }
-
-  async function formatAuthorBlock(author, H, summaryLangId, fromLang, onStatus) {
+  function formatAuthorBlock(author, H) {
     const name = cleanText(author);
     if (!name) return "";
-
-    let displayName = name;
-    const tr = window.TnewsFreeTranslate;
-    if (tr?.needsTranslation?.(name, summaryLangId, fromLang)) {
-      try {
-        const translated = await tr.translateOne(name, fromLang, tr.targetCode(summaryLangId));
-        if (tr.matchesTargetLang?.(translated, summaryLangId) || tr.targetCode(summaryLangId) === "ar") {
-          displayName = translated;
-        }
-      } catch {
-        displayName = name;
-      }
-    }
-
-    return `**${H.authorLabel || "Author name"}**\n${displayName}\n\n`;
+    return `**${H.authorLabel || "Author name"}**\n${name}\n\n`;
   }
 
-  async function buildSummary(loaded, summaryLangId, onStatus) {
-    const H = headers(summaryLangId);
+  function buildSummary(loaded, onStatus) {
+    const lang = articleLangId(loaded);
+    const H = headers(lang);
     const title = cleanText(loaded.title);
-    let body = cleanText(loaded.body);
+    const body = cleanText(loaded.body);
     const fromPage = loaded.fromPage;
 
-    const fromLang = window.TnewsFreeTranslate?.resolveSourceLang?.(
-      body || title,
-      loaded.sourceLang || loaded.locale || "",
-    );
+    onStatus?.(STATUS[lang] || STATUS.ar);
 
     const sourceNote = (() => {
       if (loaded.fromPage && loaded.source === "article") return H.fromArticle;
@@ -124,38 +119,17 @@
       return H.fromRss;
     })();
 
-    const tr = window.TnewsFreeTranslate;
-    if (tr?.needsTranslation?.(body, summaryLangId, fromLang)) {
-      body = await tr.translateText(body, summaryLangId, {
-        sourceLang: fromLang,
-        locale: loaded.locale,
-        onProgress: (n, total) => {
-          onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
-        },
-      });
-    }
-
     const sentences = splitSentences(body);
-    const authorBlock = await formatAuthorBlock(
-      loaded.author,
-      H,
-      summaryLangId,
-      fromLang,
-      onStatus,
-    );
+    const authorBlock = formatAuthorBlock(loaded.author, H);
 
     if (!sentences.length) {
       let out = `${H.intro || "📰"}\n\n`;
       out += authorBlock;
       out += `**${H.empty || ""}**`;
-      return { text: out, fromPage, sourceNote, summaryLangId };
+      return { text: out, fromPage, sourceNote, articleLang: lang };
     }
 
-    let bullets = pickTopSentences(sentences, title, Math.min(4, sentences.length));
-
-    if (tr && !tr.matchesTargetLang(bullets.join(" "), summaryLangId)) {
-      bullets = await translateLines(bullets, summaryLangId, fromLang, onStatus);
-    }
+    const bullets = pickTopSentences(sentences, title, Math.min(4, sentences.length));
 
     let out = `${H.intro || "📰"}\n\n`;
     out += authorBlock;
@@ -165,7 +139,7 @@
       : `• ${title}`;
     out += `\n\n**${H.source || ""}**\n${sourceNote}`;
 
-    return { text: out, fromPage, sourceNote, summaryLangId };
+    return { text: out, fromPage, sourceNote, articleLang: lang };
   }
 
   async function summarizeArticle(article, options) {
@@ -174,12 +148,8 @@
     }
 
     const onStatus = options?.onStatus;
-    onStatus?.(STATUS.ar.load);
-
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
-    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
-    onStatus?.(STATUS[langId]?.load || STATUS.ar.load);
-    return buildSummary(loaded, langId, onStatus);
+    return buildSummary(loaded, onStatus);
   }
 
   function formatSummaryHtml(text) {
@@ -196,6 +166,7 @@
   window.TnewsLocalSummary = {
     summarizeArticle,
     formatSummaryHtml,
+    articleLangId,
     isFree: true,
     isOffline: true,
   };
