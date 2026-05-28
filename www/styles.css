@@ -348,6 +348,10 @@ body[data-screen="news"] #app {
   line-height: 1.6;
 }
 
+.loading-state strong {
+  color: var(--accent);
+}
+
 .empty-state strong {
   display: block;
   color: var(--text);
@@ -601,6 +605,106 @@ body[data-screen="news"] #app {
   --chip-text: #c4b5fd;
 }
 
+[data-country="sa"] {
+  --accent: #15803d;
+  --accent-soft: #ca8a04;
+}
+
+[data-country="ae"] {
+  --accent: #0d9488;
+  --accent-soft: #b45309;
+}
+
+[data-country="jo"] {
+  --accent: #059669;
+  --accent-soft: #b91c1c;
+}
+
+[data-country="iq"] {
+  --accent: #dc2626;
+  --accent-soft: #1d4ed8;
+}
+
+[data-country="ly"] {
+  --accent: #eab308;
+  --accent-soft: #16a34a;
+}
+
+[data-country="es"] {
+  --accent: #ea580c;
+  --accent-soft: #b91c1c;
+}
+
+[data-country="it"] {
+  --accent: #16a34a;
+  --accent-soft: #dc2626;
+}
+
+[data-country="de"] {
+  --accent: #fbbf24;
+  --accent-soft: #374151;
+}
+
+[data-country="us"] {
+  --accent: #2563eb;
+  --accent-soft: #dc2626;
+}
+
+[data-country="tr"] {
+  --accent: #dc2626;
+  --accent-soft: #1d4ed8;
+}
+
+[data-country="ir"] {
+  --accent: #16a34a;
+  --accent-soft: #dc2626;
+}
+
+[data-country="ot"] {
+  --accent: #15803d;
+  --accent-soft: #b91c1c;
+}
+
+[data-country="sy"] {
+  --accent: #1d4ed8;
+  --accent-soft: #dc2626;
+}
+
+[data-country="ye"] {
+  --accent: #b91c1c;
+  --accent-soft: #ca8a04;
+}
+
+[data-country="pk"] {
+  --accent: #15803d;
+  --accent-soft: #1d4ed8;
+}
+
+[data-country="in"] {
+  --accent: #ea580c;
+  --accent-soft: #15803d;
+}
+
+[data-country="gb"] {
+  --accent: #1d4ed8;
+  --accent-soft: #dc2626;
+}
+
+[data-country="ca"] {
+  --accent: #dc2626;
+  --accent-soft: #1d4ed8;
+}
+
+[data-country="sd"] {
+  --accent: #ca8a04;
+  --accent-soft: #16a34a;
+}
+
+[data-country="br"] {
+  --accent: #16a34a;
+  --accent-soft: #eab308;
+}
+
 .country-screen {
   display: none;
   flex-direction: column;
@@ -660,6 +764,10 @@ html[data-country="fr"] .country-screen {
   grid-template-columns: repeat(2, 1fr);
   gap: 12px;
   padding-bottom: 16px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .country-card {

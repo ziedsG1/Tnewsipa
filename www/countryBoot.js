@@ -105,7 +105,10 @@
     window.TnewsCountries.clearWeatherCache();
 
     if (window.TnewsUi?.setUiLang && country?.defaultUiLang) {
-      window.TnewsUi.setUiLang(country.defaultUiLang);
+      const uiLang = window.TnewsUi.UI_LANGS?.[country.defaultUiLang]
+        ? country.defaultUiLang
+        : "en";
+      window.TnewsUi.setUiLang(uiLang);
       window.TnewsUi.applyDocumentLocale?.();
     }
 

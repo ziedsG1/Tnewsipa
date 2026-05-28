@@ -230,9 +230,24 @@
     throw lastErr || new Error("fetch failed");
   }
 
+  function feedUrlList(source) {
+    const urls = [source.url, ...(source.altUrls || [])];
+    return [...new Set(urls.filter(Boolean))];
+  }
+
   async function fetchFeedOnce(source) {
-    const xmlText = await httpGetText(source.url);
-    return parseRssItems(xmlText, source);
+    let lastErr = null;
+    for (const url of feedUrlList(source)) {
+      try {
+        const xmlText = await httpGetText(url);
+        const items = parseRssItems(xmlText, source);
+        if (items.length) return items;
+      } catch (err) {
+        lastErr = err;
+      }
+    }
+    if (lastErr) throw lastErr;
+    return [];
   }
 
   async function fetchFeed(source) {

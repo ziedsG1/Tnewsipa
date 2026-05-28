@@ -14,6 +14,7 @@ const THEME_KEY = "tnews-theme";
 let articles = [];
 let lastFetchedAt = null;
 let newsStale = false;
+let newsLoading = false;
 let statusTimer = null;
 let selectedIndex = null;
 let aiPanelArticle = null;
@@ -363,6 +364,13 @@ async function analyzeSelectedArticle(index) {
 function renderNewsList() {
   if (!articles.length) {
     articleCountEl.textContent = "";
+    if (newsLoading) {
+      newsListEl.innerHTML = `
+        <div class="empty-state loading-state">
+          <strong>${escapeHtml(t("statusLoading"))}</strong>
+        </div>`;
+      return;
+    }
     newsListEl.innerHTML = `
       <div class="empty-state">
         <strong>${escapeHtml(t("noNews"))}</strong>
@@ -445,8 +453,10 @@ function renderNewsList() {
 function applyPayload(payload) {
   if (!payload?.articles?.length) {
     articles = [];
-    statusEl.textContent = t("noNewsRefresh");
-    renderNewsList();
+    if (!newsLoading) {
+      statusEl.textContent = t("noNewsRefresh");
+      renderNewsList();
+    }
     return;
   }
 
@@ -463,8 +473,10 @@ function applyPayload(payload) {
 }
 
 async function loadNews(forceRefresh = false) {
-  statusEl.textContent = t("statusUpdating");
+  newsLoading = true;
+  statusEl.textContent = forceRefresh ? t("statusUpdating") : t("statusLoading");
   articleCountEl.textContent = "";
+  if (!articles.length) renderNewsList();
   try {
     if (!window.tnewsWidget) {
       statusEl.textContent = t("appError");
@@ -485,6 +497,9 @@ async function loadNews(forceRefresh = false) {
   } catch (err) {
     statusEl.textContent = t("updateFailed");
     console.error("loadNews failed", err);
+  } finally {
+    newsLoading = false;
+    if (!articles.length) renderNewsList();
   }
 }
 
@@ -558,6 +573,9 @@ async function startMainApp(options = {}) {
     if (options.countryChanged) {
       closeAiPanel();
       articles = [];
+      lastFetchedAt = null;
+      newsLoading = true;
+      statusEl.textContent = t("statusLoading");
       renderNewsList();
     }
 
