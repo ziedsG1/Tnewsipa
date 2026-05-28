@@ -1,15 +1,15 @@
 (function () {
-  const FEEDS = [
-    { id: "nawaat", label: "نواة — Nawaat", url: "https://nawaat.org/feed/", locale: "ar", priority: true, independent: true },
-    { id: "alqatiba", label: "الكتيبة — Al Katiba", url: "https://alqatiba.com/feed/", locale: "ar", priority: true, independent: true },
-    { id: "tap-tn-ar", label: "TAP", url: "https://www.tap.info.tn/ar/rss/tunisia", locale: "ar", priority: false, independent: false },
-    { id: "lapresse-tn-ar", label: "La Presse", url: "https://www.lapresse.tn/feed/", locale: "ar", priority: false, independent: false },
-    { id: "shemsfm", label: "شمس FM", url: "https://www.shemsfm.net/feed/", locale: "ar", priority: false, independent: false },
-    { id: "diwanfm", label: "ديوان FM", url: "https://diwanfm.net/feed/", locale: "ar", priority: false, independent: false },
-    { id: "mosaique-ar", label: "موزاييك", url: "https://www.mosaiquefm.net/ar/rss/", locale: "ar", priority: false, independent: false },
-    { id: "businessnews", label: "Business News", url: "https://www.businessnews.com.tn/rss", locale: "fr", priority: false, independent: false },
-    { id: "webdo-fr", label: "Webdo.tn", url: "https://www.webdo.tn/feed/", locale: "fr", priority: false, independent: false },
-  ];
+  function getFeeds() {
+    return window.TnewsCountries?.getCurrent?.()?.feeds || window.TnewsCountries?.COUNTRIES?.tn?.feeds || [];
+  }
+
+  function getTopics() {
+    return (
+      window.TnewsCountries?.getCurrent?.()?.topics ||
+      window.TnewsCountries?.COUNTRIES?.tn?.topics ||
+      {}
+    );
+  }
 
   const FEED_TIMEOUT_MS = 18000;
   const FEED_RETRIES = 2;
@@ -70,15 +70,10 @@
     { key: "tunisia", patterns: [/tunisi/i, /tunis\b/i, /تونس/i, /صفاقس/i] },
   ];
 
-  const TOPIC_AR = {
-    sport: "رياضة",
-    economy: "اقتصاد",
-    politics: "سياسة",
-    culture: "ثقافة",
-    world: "عالمي",
-    tunisia: "تونس",
-    general: "عام",
-  };
+  function topicLabel(key) {
+    const topics = getTopics();
+    return topics[key] || topics.general || "—";
+  }
 
   function isWithinDays(pubDate, days) {
     if (!pubDate) return false;
@@ -300,9 +295,10 @@
   }
 
   async function fetchAllFeeds() {
+    const feeds = getFeeds();
     const batches = [];
-    for (let i = 0; i < FEEDS.length; i += FEED_BATCH_SIZE) {
-      const chunk = FEEDS.slice(i, i + FEED_BATCH_SIZE);
+    for (let i = 0; i < feeds.length; i += FEED_BATCH_SIZE) {
+      const chunk = feeds.slice(i, i + FEED_BATCH_SIZE);
       const part = await Promise.all(chunk.map(fetchFeed));
       batches.push(...part);
     }
@@ -335,10 +331,11 @@
       fetchedAt: new Date().toISOString(),
       maxAgeDays,
       articles,
-      feedCount: FEEDS.length,
+      feedCount: getFeeds().length,
+      countryId: window.TnewsCountries?.getSelectedId?.() || "tn",
       loadedFeeds: batches.filter((b) => b.length > 0).length,
     };
   }
 
-  window.TnewsNewsFetcher = { fetchNewsArticles, FEEDS };
+  window.TnewsNewsFetcher = { fetchNewsArticles, getFeeds };
 })();

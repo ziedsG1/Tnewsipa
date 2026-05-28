@@ -12,11 +12,21 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div class="app" id="app">
+    <div class="country-screen" id="country-screen" hidden aria-hidden="true">
+      <div class="country-screen-inner">
+        <p class="country-picker-eyebrow">World News</p>
+        <h1 class="country-picker-title" id="country-picker-title">Choose your country</h1>
+        <p class="country-picker-hint" id="country-picker-hint"></p>
+        <div class="country-grid" id="country-grid" role="list"></div>
+      </div>
+    </div>
+
+    <div class="app" id="app" hidden aria-hidden="true">
       <header class="app-header">
         <div class="header-top">
-          <h1 class="app-title">Tnews</h1>
+          <h1 class="app-title" id="app-brand">Tnews</h1>
           <div class="header-actions">
+            <button type="button" class="icon-btn" id="country-btn" title="Country">🌍</button>
             <button type="button" class="icon-btn" id="notify-btn" title="Notifications">🔔</button>
             <button type="button" class="icon-btn" id="theme-btn" title="Theme">◐</button>
             <button type="button" class="icon-btn" id="share-btn" title="Share">↗</button>
@@ -62,16 +72,18 @@
       </div>
     </div>
 
+    <script src="lib/countries.js"></script>
+    <script src="lib/uiLanguage.js"></script>
     <script src="lib/newsFetcher.js"></script>
     <script src="lib/weather.js"></script>
     <script src="lib/shareCard.js"></script>
     <script src="lib/articleContent.js"></script>
-    <script src="lib/uiLanguage.js"></script>
     <script src="lib/summaryLanguage.js"></script>
     <script src="lib/tunisianStyle.js"></script>
     <script src="lib/localSummary.js"></script>
     <script src="lib/notifications.js"></script>
     <script src="app.js"></script>
     <script src="widget.js"></script>
+    <script src="countryBoot.js"></script>
   </body>
 </html>

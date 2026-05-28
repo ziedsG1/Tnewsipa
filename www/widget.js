@@ -2,6 +2,7 @@ const statusEl = document.getElementById("status");
 const articleCountEl = document.getElementById("article-count");
 const newsListEl = document.getElementById("news-list");
 const refreshBtn = document.getElementById("refresh-btn");
+const countryBtn = document.getElementById("country-btn");
 const themeBtn = document.getElementById("theme-btn");
 const shareBtn = document.getElementById("share-btn");
 const notifyBtn = document.getElementById("notify-btn");
@@ -244,6 +245,7 @@ function applyStaticUi() {
   if (notifyBtn) notifyBtn.title = t("notify");
   if (shareBtn) shareBtn.title = t("share");
   if (refreshBtn) refreshBtn.title = t("refresh");
+  if (countryBtn) countryBtn.title = t("changeCountry");
   if (themeBtn) {
     const current = document.documentElement.getAttribute("data-theme") || "dark";
     themeBtn.title = current === "dark" ? t("themeLight") : t("themeDark");
@@ -524,28 +526,52 @@ aiRetryBtn?.addEventListener("click", () => {
   if (aiPanelArticle) runArticleSummary(aiPanelArticle);
 });
 
-(async function init() {
+let mainAppReady = false;
+
+async function startMainApp(options = {}) {
   try {
-    window.TnewsUi?.applyDocumentLocale?.();
-    initTheme();
-    initUiLangBar();
-    applyStaticUi();
-    if (window.TnewsNotifications?.init) {
-      window.TnewsNotifications.init().catch(() => {});
-      updateNotifyButton();
+    if (!mainAppReady) {
+      window.TnewsUi?.applyDocumentLocale?.();
+      initTheme();
+      initUiLangBar();
+      applyStaticUi();
+      if (window.TnewsNotifications?.init) {
+        window.TnewsNotifications.init().catch(() => {});
+        updateNotifyButton();
+      }
+      if (!window.tnewsWidget) {
+        statusEl.textContent = t("loadError");
+        return;
+      }
+      window.tnewsWidget.onNewsUpdated((payload) => {
+        applyPayload(payload);
+      });
+      statusTimer = setInterval(updateStatusLine, 30000);
+      mainAppReady = true;
+    } else {
+      window.TnewsUi?.applyDocumentLocale?.();
+      applyStaticUi();
+      syncUiLangButtons();
+      window.TnewsCountries?.applyBranding?.(window.TnewsCountries.getCurrent());
     }
-    if (!window.tnewsWidget) {
-      statusEl.textContent = t("loadError");
-      return;
+
+    if (options.countryChanged) {
+      closeAiPanel();
+      articles = [];
+      renderNewsList();
     }
-    window.tnewsWidget.onNewsUpdated((payload) => {
-      applyPayload(payload);
-    });
-    statusTimer = setInterval(updateStatusLine, 30000);
+
     await loadNews();
     loadWeather().catch(() => {});
   } catch (err) {
     statusEl.textContent = t("initFailed");
-    console.error("init failed", err);
+    console.error("startMainApp failed", err);
   }
-})();
+}
+
+window.tnewsStartMainApp = startMainApp;
+
+countryBtn?.addEventListener("click", (event) => {
+  event.stopPropagation();
+  window.TnewsCountryBoot?.openCountryPicker?.();
+});

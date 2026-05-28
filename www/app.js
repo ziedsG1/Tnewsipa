@@ -8,7 +8,10 @@
     }
   })();
 
-  const CACHE_KEY = "tnews-news-cache";
+  function cacheKey() {
+    const id = window.TnewsCountries?.getSelectedId?.() || "tn";
+    return `tnews-news-cache-${id}`;
+  }
   const CONFIG = {
     rotateSeconds: 8,
     refreshMinutes: 3,
@@ -49,7 +52,7 @@
       articles: (payload.articles || []).map(slimArticle),
     };
     try {
-      localStorage.setItem(CACHE_KEY, JSON.stringify(toStore));
+      localStorage.setItem(cacheKey(), JSON.stringify(toStore));
     } catch {
       /* ignore quota errors */
     }

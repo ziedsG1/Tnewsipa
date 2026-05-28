@@ -533,3 +533,110 @@ body {
   color: var(--accent-soft);
   border-color: var(--accent);
 }
+
+[data-country="fr"] {
+  --accent: #2563eb;
+  --accent-soft: #dc2626;
+  --chip-bg: rgba(37, 99, 235, 0.15);
+  --chip-border: rgba(37, 99, 235, 0.35);
+  --chip-text: #93c5fd;
+}
+
+[data-country="tn"] {
+  --accent: #0ea5e9;
+  --accent-soft: #34d399;
+}
+
+.country-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  padding: calc(var(--safe-top) + 24px) 20px calc(var(--safe-bottom) + 24px);
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(14, 165, 233, 0.18), transparent),
+    var(--bg);
+}
+
+[data-country="fr"] .country-screen,
+html[data-country="fr"] .country-screen {
+  background: radial-gradient(ellipse 120% 80% at 50% -20%, rgba(37, 99, 235, 0.2), transparent),
+    var(--bg);
+}
+
+.country-screen-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 420px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.country-picker-eyebrow {
+  margin: 0 0 8px;
+  font-size: 0.8rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.country-picker-title {
+  margin: 0 0 10px;
+  font-size: 1.65rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.country-picker-hint {
+  margin: 0 0 28px;
+  color: var(--muted);
+  font-size: 0.95rem;
+  line-height: 1.5;
+}
+
+.country-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+
+.country-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--card);
+  color: var(--text);
+  text-align: start;
+  cursor: pointer;
+  transition: border-color 0.15s, transform 0.15s, background 0.15s;
+}
+
+.country-card:active {
+  transform: scale(0.98);
+}
+
+.country-card:hover {
+  border-color: var(--accent);
+  background: var(--card-hover);
+}
+
+.country-card-flag {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.country-card-brand {
+  font-size: 1.35rem;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.country-card-name {
+  font-size: 0.95rem;
+  color: var(--muted);
+}
