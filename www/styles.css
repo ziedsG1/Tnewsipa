@@ -674,3 +674,39 @@ html[data-country="fr"] .country-screen {
   font-size: 0.95rem;
   color: var(--muted);
 }
+
+.country-card--selected {
+  border-color: var(--accent);
+  background: var(--chip-bg);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.country-picker-footer {
+  margin-top: auto;
+  padding-top: 20px;
+  position: sticky;
+  bottom: 0;
+  background: linear-gradient(transparent, var(--bg) 24%);
+}
+
+.country-confirm-btn {
+  width: 100%;
+  padding: 16px 24px;
+  border: none;
+  border-radius: 14px;
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #fff;
+  background: var(--accent);
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+}
+
+.country-confirm-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.country-confirm-btn:not(:disabled):active {
+  transform: scale(0.98);
+}

@@ -53,14 +53,6 @@
     );
   }
 
-  function httpBodyText(res) {
-    const d = res?.data;
-    if (typeof d === "string") return d;
-    if (d == null) return "";
-    if (typeof d === "object" && typeof d.body === "string") return d.body;
-    return String(d);
-  }
-
   const BASE_RULES = [
     { key: "sport", patterns: [/sport/i, /football/i, /كرة/i, /رياض/i] },
     { key: "economy", patterns: [/économ/i, /finance/i, /اقتصاد/i, /دينار/i] },
@@ -221,62 +213,18 @@
       .filter((a) => a.title && a.link);
   }
 
-  async function nativeHttpGet(url) {
-    const http = window.Capacitor?.Plugins?.CapacitorHttp;
-    if (!http?.get) return null;
-
-    const res = await http.get({
-      url,
-      headers: REQUEST_HEADERS,
-      connectTimeout: FEED_TIMEOUT_MS,
-      readTimeout: FEED_TIMEOUT_MS,
-      responseType: "text",
-    });
-
-    if (res.status < 200 || res.status >= 300) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const body = httpBodyText(res);
-    if (!body || !looksLikeRss(body)) {
-      throw new Error("Not RSS XML");
-    }
-    return body;
-  }
-
-  async function webFetchGet(url) {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), FEED_TIMEOUT_MS);
-    try {
-      const res = await fetch(url, {
-        signal: controller.signal,
-        headers: REQUEST_HEADERS,
-        cache: "no-store",
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const body = await res.text();
-      if (!looksLikeRss(body)) throw new Error("Not RSS XML");
-      return body;
-    } finally {
-      clearTimeout(timer);
-    }
-  }
-
   async function httpGetText(url) {
     let lastErr = null;
-    const attempts = [];
-    if (window.Capacitor?.isNativePlatform?.()) {
-      attempts.push(() => nativeHttpGet(url));
-    }
-    attempts.push(() => webFetchGet(url), () => webFetchGet(url));
-
-    for (const attempt of attempts) {
+    for (let i = 0; i < FEED_RETRIES; i += 1) {
       try {
-        const body = await attempt();
+        const body = await window.TnewsHttp.getText(url, REQUEST_HEADERS);
         if (body && looksLikeRss(body)) return body;
         lastErr = new Error("Not RSS XML");
       } catch (err) {
         lastErr = err;
+      }
+      if (i < FEED_RETRIES - 1) {
+        await new Promise((r) => setTimeout(r, 400 * (i + 1)));
       }
     }
     throw lastErr || new Error("fetch failed");

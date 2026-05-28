@@ -18,6 +18,11 @@
         <h1 class="country-picker-title" id="country-picker-title">Choose your country</h1>
         <p class="country-picker-hint" id="country-picker-hint"></p>
         <div class="country-grid" id="country-grid" role="list"></div>
+        <footer class="country-picker-footer">
+          <button type="button" class="country-confirm-btn" id="country-confirm-btn" disabled>
+            Continue
+          </button>
+        </footer>
       </div>
     </div>
 
@@ -72,9 +77,11 @@
       </div>
     </div>
 
+    <script src="lib/httpGet.js"></script>
     <script src="lib/countries.js"></script>
     <script src="lib/uiLanguage.js"></script>
     <script src="lib/newsFetcher.js"></script>
+    <script src="lib/articleImage.js"></script>
     <script src="lib/weather.js"></script>
     <script src="lib/shareCard.js"></script>
     <script src="lib/articleContent.js"></script>

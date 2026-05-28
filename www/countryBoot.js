@@ -1,19 +1,48 @@
 (function () {
   const screenEl = () => document.getElementById("country-screen");
   const appEl = () => document.getElementById("app");
+  const confirmBtn = () => document.getElementById("country-confirm-btn");
+
+  let pendingCountryId = null;
 
   function pickerLang() {
     return window.TnewsUi?.getUiLangId?.() || "en";
+  }
+
+  function pickerLabels() {
+    const lang = pickerLang();
+    const sample = window.TnewsCountries?.list?.()?.[0];
+    return sample ? window.TnewsCountries.label(sample, lang) : {};
+  }
+
+  function updateConfirmButton() {
+    const btn = confirmBtn();
+    if (!btn) return;
+    btn.disabled = !pendingCountryId;
+    const L = pickerLabels();
+    btn.textContent = L.continue || "Continue";
+  }
+
+  function highlightSelected() {
+    document.querySelectorAll(".country-card").forEach((card) => {
+      card.classList.toggle(
+        "country-card--selected",
+        card.dataset.countryId === pendingCountryId,
+      );
+    });
+  }
+
+  function pickCountry(id) {
+    pendingCountryId = id;
+    highlightSelected();
+    updateConfirmButton();
   }
 
   function renderPicker() {
     const screen = screenEl();
     if (!screen || !window.TnewsCountries) return;
 
-    const lang = pickerLang();
-    const sample = window.TnewsCountries.list()[0];
-    const L = sample ? window.TnewsCountries.label(sample, lang) : {};
-
+    const L = pickerLabels();
     const titleEl = document.getElementById("country-picker-title");
     const hintEl = document.getElementById("country-picker-hint");
     if (titleEl) titleEl.textContent = L.pickTitle || "Choose your country";
@@ -24,18 +53,22 @@
 
     grid.innerHTML = "";
     window.TnewsCountries.list().forEach((country) => {
-      const cl = window.TnewsCountries.label(country, lang);
+      const cl = window.TnewsCountries.label(country, pickerLang());
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className = "country-card";
+      btn.dataset.countryId = country.id;
       btn.innerHTML = `
         <span class="country-card-flag">${country.flag}</span>
         <span class="country-card-brand">${country.brand}</span>
         <span class="country-card-name">${cl.name || country.id}</span>
       `;
-      btn.addEventListener("click", () => selectCountry(country.id));
+      btn.addEventListener("click", () => pickCountry(country.id));
       grid.appendChild(btn);
     });
+
+    highlightSelected();
+    updateConfirmButton();
   }
 
   function showPicker() {
@@ -85,14 +118,20 @@
     }
   }
 
+  function confirmSelection() {
+    if (!pendingCountryId) return;
+    selectCountry(pendingCountryId);
+  }
+
   function openCountryPicker() {
+    pendingCountryId = window.TnewsCountries?.getSelectedId?.() || null;
     showPicker();
-    renderPicker();
   }
 
   function boot() {
     const id = window.TnewsCountries?.getSelectedId?.();
     if (!id) {
+      pendingCountryId = null;
       showPicker();
       return;
     }
@@ -108,12 +147,16 @@
     openCountryPicker,
     selectCountry,
     renderPicker,
+    confirmSelection,
   };
 
   document.addEventListener("DOMContentLoaded", () => {
     if (window.TnewsUi?.applyDocumentLocale) {
       window.TnewsUi.applyDocumentLocale();
     }
+
+    confirmBtn()?.addEventListener("click", confirmSelection);
+
     boot();
   });
 })();

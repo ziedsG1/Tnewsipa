@@ -2,36 +2,43 @@
   const W = 1080;
   const H = 1920;
   const BG = "#070b12";
-  const GREEN = "#34d399";
   const WHITE = "#f8fafc";
   const MUTED = "#94a3b8";
   const LINE = "rgba(255,255,255,0.12)";
 
-  const SOURCE_LABELS = {
-    nawaat: "نواة — Nawaat",
-    alqatiba: "الكتيبة — Al Katiba",
-    "tap-tn-ar": "TAP — تونس afrique",
-    "lapresse-tn-ar": "La Presse — العربية",
-    "mosaique-ar": "موزاييك — Mosaique FM",
-    businessnews: "Business News",
-    "webdo-fr": "Webdo.tn",
-  };
-
-  function sourceLabel(article) {
-    return SOURCE_LABELS[article.sourceId] || article.sourceLabel || "Tnews";
+  function getCountry() {
+    return window.TnewsCountries?.getCurrent?.() || window.TnewsCountries?.COUNTRIES?.tn;
   }
 
-  function formatShareDate(pubDate) {
+  function shareColors(country) {
+    const c = country || getCountry();
+    return {
+      accent: c?.share?.accent || "#34d399",
+      accentSoft: c?.share?.accentSoft || "#0ea5e9",
+      bg: BG,
+    };
+  }
+
+  function sourceLabel(article) {
+    return article.sourceLabel || getCountry()?.brand || "Tnews";
+  }
+
+  function formatShareDate(pubDate, country) {
     if (!pubDate) return "";
     const date = new Date(pubDate);
     if (Number.isNaN(date.getTime())) return "";
-    return date.toLocaleString("ar-TN", {
+    const locale =
+      country?.defaultUiLang === "fr"
+        ? "fr-FR"
+        : country?.pageDir === "rtl"
+          ? "ar"
+          : "en";
+    return date.toLocaleString(locale, {
       day: "numeric",
       month: "long",
       year: "numeric",
       hour: "numeric",
       minute: "2-digit",
-      hour12: true,
     });
   }
 
@@ -71,89 +78,142 @@
     return lines;
   }
 
-  function drawBrand(ctx, x, y, source, large) {
-    ctx.textAlign = "center";
-    ctx.textBaseline = "top";
-    ctx.font = `700 ${large ? 72 : 44}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    ctx.fillStyle = GREEN;
-    ctx.fillText("TNEWS", x, y);
-
-    ctx.font = `400 ${large ? 36 : 28}px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
-    ctx.fillStyle = WHITE;
-    ctx.fillText(source, x, y + (large ? 88 : 54));
+  function drawImageCover(ctx, img, x, y, w, h) {
+    const scale = Math.max(w / img.width, h / img.height);
+    const sw = img.width * scale;
+    const sh = img.height * scale;
+    const sx = x + (w - sw) / 2;
+    const sy = y + (h - sh) / 2;
+    ctx.save();
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 24);
+    ctx.clip();
+    ctx.drawImage(img, sx, sy, sw, sh);
+    ctx.restore();
   }
 
-  function drawRightBlock(ctx, article, topY) {
+  function drawBrandHeader(ctx, country, colors, y) {
     const pad = 72;
-    const rightX = W - pad;
+    const isRtl = country?.pageDir === "rtl";
+    const x = isRtl ? W - pad : pad;
+    ctx.textAlign = isRtl ? "right" : "left";
+    ctx.textBaseline = "top";
+
+    ctx.font =
+      '700 56px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillStyle = colors.accent;
+    ctx.fillText(String(country.brand || "Tnews").toUpperCase(), x, y);
+
+    ctx.font =
+      '400 40px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillStyle = WHITE;
+    ctx.fillText(country.flag || "", x, y + 68);
+  }
+
+  function drawArticleBlock(ctx, article, country, colors, topY, heroBottom) {
+    const pad = 72;
+    const isRtl = country?.pageDir === "rtl";
+    const alignX = isRtl ? W - pad : pad;
     const maxW = W - pad * 2;
     const source = sourceLabel(article);
 
-    ctx.textAlign = "right";
+    ctx.textAlign = isRtl ? "right" : "left";
     ctx.textBaseline = "top";
 
-    ctx.font = '700 40px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = GREEN;
-    ctx.fillText("TNEWS", rightX, topY);
+    let y = Math.max(topY, heroBottom + 40);
 
-    ctx.font = '400 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
-    ctx.fillStyle = WHITE;
-    ctx.fillText(source, rightX, topY + 52);
-
-    let y = topY + 120;
-
-    ctx.font = '700 52px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.font =
+      '700 48px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
     ctx.fillStyle = WHITE;
     const titleLines = wrapLines(ctx, article.title, maxW, 4);
-    const titleLineH = 68;
     for (const ln of titleLines) {
-      ctx.fillText(ln, rightX, y);
-      y += titleLineH;
+      ctx.fillText(ln, alignX, y);
+      y += 62;
     }
 
-    y += 16;
-    const dateStr = formatShareDate(article.pubDate);
+    y += 12;
+    ctx.font =
+      '400 30px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+    ctx.fillStyle = colors.accentSoft;
+    ctx.fillText(source, alignX, y);
+    y += 44;
+
+    const dateStr = formatShareDate(article.pubDate, country);
     if (dateStr) {
-      ctx.font = '400 28px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.fillStyle = MUTED;
-      ctx.fillText(dateStr, rightX, y);
-      y += 48;
+      ctx.fillText(dateStr, alignX, y);
+      y += 40;
     }
 
-    const summary = shorten(article.summary || "", 380);
+    const summary = shorten(article.summary || "", 360);
     if (summary) {
-      ctx.font = '400 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      y += 8;
+      ctx.font =
+        '400 34px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
       ctx.fillStyle = "rgba(248,250,252,0.92)";
-      const sumLines = wrapLines(ctx, summary, maxW, 8);
-      const sumLineH = 52;
+      const sumLines = wrapLines(ctx, summary, maxW, 6);
       for (const ln of sumLines) {
-        ctx.fillText(ln, rightX, y);
-        y += sumLineH;
+        ctx.fillText(ln, alignX, y);
+        y += 50;
       }
     }
   }
 
-  function renderShareCanvas(article) {
+  function renderShareCanvas(article, heroImage) {
+    const country = getCountry();
+    const colors = shareColors(country);
     const canvas = document.createElement("canvas");
     canvas.width = W;
     canvas.height = H;
     const ctx = canvas.getContext("2d");
 
-    ctx.fillStyle = BG;
+    ctx.fillStyle = colors.bg;
     ctx.fillRect(0, 0, W, H);
 
-    const source = sourceLabel(article);
-    drawBrand(ctx, W / 2, 120, source, true);
+    const headerY = 96;
+    drawBrandHeader(ctx, country, colors, headerY);
 
-    const panelTop = Math.floor(H * 0.52);
+    const heroX = 72;
+    const heroY = 280;
+    const heroW = W - 144;
+    const heroH = heroImage ? 720 : 0;
+
+    if (heroImage) {
+      drawImageCover(ctx, heroImage, heroX, heroY, heroW, heroH);
+      ctx.strokeStyle = LINE;
+      ctx.lineWidth = 2;
+      ctx.strokeRect(heroX, heroY, heroW, heroH);
+    } else {
+      const placeholderY = heroY;
+      const placeholderH = 480;
+      ctx.fillStyle = "rgba(255,255,255,0.06)";
+      ctx.beginPath();
+      ctx.roundRect(heroX, placeholderY, heroW, placeholderH, 24);
+      ctx.fill();
+      ctx.font =
+        '600 36px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif';
+      ctx.fillStyle = MUTED;
+      ctx.textAlign = "center";
+      ctx.fillText(country?.flag || "📰", W / 2, placeholderY + placeholderH / 2 - 24);
+      drawArticleBlock(
+        ctx,
+        article,
+        country,
+        colors,
+        placeholderY + placeholderH + 32,
+        placeholderY + placeholderH,
+      );
+      return canvas;
+    }
+
     ctx.strokeStyle = LINE;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(72, panelTop);
-    ctx.lineTo(W - 72, panelTop);
+    ctx.moveTo(72, heroY + heroH + 32);
+    ctx.lineTo(W - 72, heroY + heroH + 32);
     ctx.stroke();
 
-    drawRightBlock(ctx, article, panelTop + 48);
+    drawArticleBlock(ctx, article, country, colors, heroY + heroH + 56, heroY + heroH);
 
     return canvas;
   }
@@ -168,8 +228,19 @@
   }
 
   async function shareArticleImage(article) {
-    const canvas = renderShareCanvas(article);
+    const country = getCountry();
+    let heroImage = null;
+
+    if (window.TnewsArticleImage?.fetchArticleImageUrl) {
+      const imageUrl = await window.TnewsArticleImage.fetchArticleImageUrl(article);
+      if (imageUrl && window.TnewsArticleImage.loadImageElement) {
+        heroImage = await window.TnewsArticleImage.loadImageElement(imageUrl);
+      }
+    }
+
+    const canvas = renderShareCanvas(article, heroImage);
     const blob = await canvasToBlob(canvas);
+    const brand = country?.brand || "Tnews";
 
     if (window.Capacitor?.isNativePlatform?.()) {
       const reader = new FileReader();
@@ -190,7 +261,7 @@
           directory: "CACHE",
         });
         await share.share({
-          title: "Tnews",
+          title: brand,
           files: [written.uri],
           dialogTitle: "مشاركة",
         });
@@ -198,16 +269,16 @@
       }
     }
 
-    const file = new File([blob], "tnews-story.png", { type: "image/png" });
+    const file = new File([blob], `${brand}-story.png`, { type: "image/png" });
     if (navigator.share && navigator.canShare?.({ files: [file] })) {
-      await navigator.share({ files: [file], title: "Tnews" });
+      await navigator.share({ files: [file], title: brand });
       return;
     }
 
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = "tnews-story.png";
+    a.download = `${brand}-story.png`;
     a.click();
     URL.revokeObjectURL(url);
   }
