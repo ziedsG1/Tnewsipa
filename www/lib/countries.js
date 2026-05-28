@@ -83,15 +83,6 @@
     };
   }
 
-  function occupiedTerritoryLabels() {
-    return {
-      ar: { name: "الأراضي المحتلة", ...PICKER_LABELS.ar },
-      en: { name: "Occupied territory", ...PICKER_LABELS.en },
-      fr: { name: "Territoire occupé", ...PICKER_LABELS.fr },
-      tn: { name: "الأراضي المحتلة", ...PICKER_LABELS.tn },
-    };
-  }
-
   const COUNTRIES = {
     tn: {
       id: "tn",
@@ -530,20 +521,18 @@
       ],
       labels: arLabels("إيران", "Iran", "Iran", "إيران"),
     },
-    ot: {
-      id: "ot",
-      flag: "🏳️",
-      brand: "Onews",
+    ps: {
+      id: "ps",
+      flag: "🇵🇸",
+      brand: "Palnews",
       share: { accent: "#15803d", accentSoft: "#b91c1c" },
       defaultUiLang: "ar",
       pageDir: "rtl",
       order: 18,
       localPatterns: [
-        /occupied/i,
         /palestin/i,
         /gaza/i,
         /west bank/i,
-        /الأراضي المحتلة/i,
         /فلسطين/i,
         /غزة/i,
         /الضفة/i,
@@ -551,6 +540,7 @@
         /jerusalem/i,
         /hebron/i,
         /ramallah/i,
+        /bethlehem/i,
       ],
       weather: {
         lat: 31.9038,
@@ -558,19 +548,19 @@
         timezone: "Asia/Hebron",
         city: { ar: "رام الله", en: "Ramallah", fr: "Ramallah", tn: "رام الله" },
       },
-      topics: { ...AR_TOPICS, local: "الأراضي المحتلة" },
+      topics: { ...AR_TOPICS, local: "فلسطين" },
       feeds: [
         {
-          id: "mee-ot",
-          label: "Middle East Eye",
+          id: "mee-ps",
+          label: "Middle East Monitor",
           url: "https://www.middleeastmonitor.com/feed/",
           locale: "en",
           priority: true,
           independent: true,
         },
-        { id: "imemc", label: "IMEMC", url: "https://imemc.org/rss", locale: "en", priority: true, independent: true },
+        { id: "imemc-ps", label: "IMEMC", url: "https://imemc.org/rss", locale: "en", priority: true, independent: true },
         {
-          id: "aljazeera-ot",
+          id: "aljazeera-ps",
           label: "Al Jazeera",
           url: "https://www.aljazeera.com/xml/rss/all.xml",
           locale: "ar",
@@ -578,7 +568,51 @@
           independent: true,
         },
       ],
-      labels: occupiedTerritoryLabels(),
+      labels: arLabels("فلسطين", "Palestine", "Palestine", "فلسطين"),
+    },
+    il: {
+      id: "il",
+      flag: "🇮🇱",
+      brand: "Isnews",
+      share: { accent: "#2563eb", accentSoft: "#1d4ed8" },
+      defaultUiLang: "en",
+      pageDir: "ltr",
+      order: 19,
+      localPatterns: [/israel/i, /israël/i, /إسرائيل/i, /tel aviv/i, /jerusalem/i, /القدس/i, /غزة/i],
+      weather: {
+        lat: 32.0853,
+        lon: 34.7818,
+        timezone: "Asia/Jerusalem",
+        city: { ar: "تل أبيب", en: "Tel Aviv", fr: "Tel Aviv", tn: "تل أبيب" },
+      },
+      topics: { ...EN_TOPICS, local: "Israel" },
+      feeds: [
+        {
+          id: "jpost",
+          label: "Jerusalem Post",
+          url: "https://www.jpost.com/rss/rssfeedsheadlines.aspx",
+          locale: "en",
+          priority: true,
+          independent: false,
+        },
+        {
+          id: "ynet",
+          label: "Ynetnews",
+          url: "https://www.ynetnews.com/Integration/StoryRss2.xml",
+          locale: "en",
+          priority: true,
+          independent: false,
+        },
+        {
+          id: "bbc-me-il",
+          label: "BBC Middle East",
+          url: "https://feeds.bbci.co.uk/news/world/middle_east/rss.xml",
+          locale: "en",
+          priority: false,
+          independent: false,
+        },
+      ],
+      labels: arLabels("إسرائيل", "Israel", "Israël", "إسرائيل"),
     },
     sy: {
       id: "sy",
@@ -587,7 +621,7 @@
       share: { accent: "#1d4ed8", accentSoft: "#dc2626" },
       defaultUiLang: "ar",
       pageDir: "rtl",
-      order: 19,
+      order: 20,
       localPatterns: [/syri/i, /syrie/i, /سوريا/i, /دمشق/i],
       weather: {
         lat: 33.5138,
@@ -610,7 +644,7 @@
       share: { accent: "#b91c1c", accentSoft: "#ca8a04" },
       defaultUiLang: "ar",
       pageDir: "rtl",
-      order: 20,
+      order: 21,
       localPatterns: [/yemen/i, /yémen/i, /اليمن/i, /صنعاء/i],
       weather: {
         lat: 15.3694,
@@ -792,7 +826,8 @@
     "iq",
     "ly",
     "ir",
-    "ot",
+    "ps",
+    "il",
     "sy",
     "ye",
     "fr",
@@ -810,7 +845,11 @@
   ];
 
   function getSelectedId() {
-    const id = localStorage.getItem(STORAGE_KEY);
+    let id = localStorage.getItem(STORAGE_KEY);
+    if (id === "ot") {
+      id = "ps";
+      localStorage.setItem(STORAGE_KEY, id);
+    }
     return COUNTRIES[id] ? id : null;
   }
 

@@ -97,15 +97,36 @@ function displaySource(article) {
 }
 
 function cardText(article) {
+  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
+  if (window.TnewsCardTranslate?.getDisplay) {
+    return window.TnewsCardTranslate.getDisplay(article, uiLang);
+  }
   return { title: article.title || "", summary: article.summary || "" };
 }
 
 function scheduleCardTranslations() {
-  /* Off by default — saves Gemini quota for summaries. */
+  if (cardTranslateTimer) clearTimeout(cardTranslateTimer);
+  cardTranslateTimer = setTimeout(() => refreshCardTranslations(), 800);
 }
 
 async function refreshCardTranslations() {
-  /* Card translation disabled — summaries use article text + free translate. */
+  if (!window.TnewsCardTranslate?.refreshForUiLang || !articles.length) return;
+  if (!aiPanelEl.hidden) return;
+
+  const uiLang = window.TnewsUi?.getUiLangId?.() || "ar";
+  const needsWork = articles.some((a) => window.TnewsCardTranslate.needsTranslation(a, uiLang));
+  if (!needsWork) return;
+
+  const gen = ++cardTranslateGeneration;
+  statusEl.textContent = t("translatingCards");
+
+  const { rateLimited } = await window.TnewsCardTranslate.refreshForUiLang(articles, uiLang, () => {
+    if (gen !== cardTranslateGeneration) return;
+    renderNewsList();
+  });
+
+  if (gen === cardTranslateGeneration) updateStatusLine();
+  if (rateLimited) statusEl.textContent = t("cardsRateLimited");
 }
 
 function updateNotifyButton() {
@@ -286,7 +307,8 @@ function openAiPanel(article) {
   aiPanelEl.hidden = false;
   aiPanelEl.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
-  const title = article.title || "خبر";
+  const display = cardText(article);
+  const title = display.title || article.title || "خبر";
   aiPanelTitle.textContent = title.length > 80 ? `${title.slice(0, 77)}…` : title;
   aiPanelMeta.textContent = buildAiPanelMeta(article);
   aiOpenSourceBtn.hidden = !article.link;

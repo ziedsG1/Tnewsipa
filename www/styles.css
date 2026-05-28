@@ -660,9 +660,14 @@ body[data-screen="news"] #app {
   --accent-soft: #dc2626;
 }
 
-[data-country="ot"] {
+[data-country="ps"] {
   --accent: #15803d;
   --accent-soft: #b91c1c;
+}
+
+[data-country="il"] {
+  --accent: #2563eb;
+  --accent-soft: #1d4ed8;
 }
 
 [data-country="sy"] {

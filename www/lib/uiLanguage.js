@@ -71,8 +71,8 @@
       fromArticle: "من المقال نفسه",
       fromArticlePartial: "من المقال (جزء)",
       fromRss: "من RSS برك",
-      translatingCards: "جاري ترجمة عناوين الأخبار…",
-      cardsRateLimited: "ترجمة العناوين متوقفة — حد Gemini (الملخص أولوية)",
+      translatingCards: "جاري ترجمة العناوين والوصف…",
+      cardsRateLimited: "ترجمة البطاقات متوقفة مؤقتاً — حاول لاحقاً",
       retrySummary: "إعادة المحاولة",
     },
     tn: {
@@ -137,8 +137,8 @@
       fromArticle: "من المقال",
       fromArticlePartial: "من المقال (شوية)",
       fromRss: "من RSS برك",
-      translatingCards: "قاعدين نترجمو العناوين…",
-      cardsRateLimited: "ترجمة العناوين وقفت — Gemini مشغول",
+      translatingCards: "قاعدين نترجمو العناوين والوصف…",
+      cardsRateLimited: "ترجمة البطاقات وقفت — جرّب بعد شوية",
       retrySummary: "عاود جرّب",
     },
     en: {
@@ -202,8 +202,8 @@
       fromArticle: "From full article",
       fromArticlePartial: "From article (partial)",
       fromRss: "RSS only",
-      translatingCards: "Translating headlines…",
-      cardsRateLimited: "Headline translation paused — Gemini limit",
+      translatingCards: "Translating headlines and descriptions…",
+      cardsRateLimited: "Card translation paused — try again later",
       retrySummary: "Retry",
     },
     fr: {
@@ -268,8 +268,8 @@
       fromArticle: "Depuis l'article",
       fromArticlePartial: "Article (partiel)",
       fromRss: "RSS seulement",
-      translatingCards: "Traduction des titres…",
-      cardsRateLimited: "Traduction des titres en pause — limite Gemini",
+      translatingCards: "Traduction des titres et descriptions…",
+      cardsRateLimited: "Traduction des cartes en pause — réessayez plus tard",
       retrySummary: "Réessayer",
     },
   };
