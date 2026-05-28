@@ -414,21 +414,22 @@
     const handler = siteHandlerForUrl(link);
     const minFull = handler?.minFullChars || MIN_FULL_CHARS;
 
-    function detectBodyLang(text) {
-      const sample = String(text || "").slice(0, 2500);
-      if (!sample.length) return "";
-      const ar = (sample.match(/[\u0600-\u06FF]/g) || []).length;
-      const letters = sample.replace(/\s/g, "").length || 1;
-      if (ar / letters > 0.15) return "ar";
-      if (/[éèêëàâùûçœæ«»]/i.test(sample) || /\b(le|la|les|des|une|dans)\b/i.test(sample)) {
-        return "fr";
-      }
-      return "en";
-    }
-
     function result(extra) {
       const bodyForLang = extra.body || "";
-      const sourceLang = feedLocale || detectBodyLang(bodyForLang);
+      let sourceLang = feedLocale || "";
+      if (!sourceLang && bodyForLang.length > 40) {
+        const sample = bodyForLang.slice(0, 2500);
+        const arChars = (sample.match(/[\u0600-\u06FF]/g) || []).length;
+        const letters = sample.replace(/\s/g, "").length || 1;
+        const frHits = (
+          sample.match(
+            /\b(le|la|les|des|du|de|un|une|dans|pour|avec|est|sont)\b|[àâäéèêëïîôùûüçœæ]/gi,
+          ) || []
+        ).length;
+        if (arChars / letters > 0.12) sourceLang = "ar";
+        else if (frHits > 3) sourceLang = "fr";
+        else sourceLang = "en";
+      }
       return {
         locale: feedLocale,
         sourceLang,

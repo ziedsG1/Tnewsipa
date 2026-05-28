@@ -295,8 +295,6 @@ function selectSummaryLang(id) {
   syncSummaryLangButtons();
   renderNewsList();
   if (aiPanelArticle && !aiPanelEl.hidden) {
-    aiPanelContent.innerHTML = "";
-    setAiPanelState({ loading: true, content: false, error: false, showRetry: false });
     runArticleSummary(aiPanelArticle);
   }
 }
@@ -373,11 +371,11 @@ async function runArticleSummary(article) {
   };
 
   try {
+    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
     const result = await window.TnewsLocalSummary.summarizeArticle(article, { onStatus });
     const { text, sourceNote } = unwrapSummaryResult(result);
-    const summaryLang = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
-    aiPanelContent.dir = summaryLang === "ar" || summaryLang === "tn" ? "rtl" : "ltr";
-    aiPanelContent.lang = summaryLang === "en" ? "en" : summaryLang === "fr" ? "fr" : "ar";
+    const summaryDir = langId === "en" || langId === "fr" ? "ltr" : "rtl";
+    aiPanelContent.setAttribute("dir", summaryDir);
     aiPanelContent.innerHTML = formatSummaryToHtml(text);
     appendSourceToMeta(sourceNote);
     setAiPanelState({ loading: false, content: true, error: false, showRetry: false });

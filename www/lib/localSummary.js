@@ -11,9 +11,9 @@
     fr: { load: "Chargement de l'article…", translate: "Traduction en français…" },
   };
 
-  function headers(langId) {
+  function headers(summaryLangId) {
     return (
-      window.TnewsTunisianStyle?.getLocalHeaders?.(langId) ||
+      window.TnewsTunisianStyle?.getLocalHeaders?.(summaryLangId) ||
       window.TnewsTunisianStyle?.LOCAL_HEADERS ||
       {}
     );
@@ -35,7 +35,7 @@
     if (parts.length >= 2) return parts;
 
     return cleanText(text)
-      .split(/(?<=،)\s+/)
+      .split(/(?<=،)\s+|(?<=[,;])\s+/)
       .map((s) => s.trim())
       .filter((s) => s.length >= 40);
   }
@@ -72,26 +72,39 @@
       .map((p) => p.sentence);
   }
 
-  async function formatAuthorBlock(author, H, summaryLangId, sourceLangHint, onStatus) {
+  async function translateLines(lines, summaryLangId, fromLang, onStatus) {
+    const tr = window.TnewsFreeTranslate;
+    if (!tr) return lines;
+
+    const to = tr.targetCode(summaryLangId);
+    if (!tr.needsTranslation(lines.join(" "), summaryLangId, fromLang)) {
+      return lines;
+    }
+
+    onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+    return tr.translateLines(lines, fromLang, to, (n, total) => {
+      onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
+    });
+  }
+
+  async function formatAuthorBlock(author, H, summaryLangId, fromLang, onStatus) {
     const name = cleanText(author);
     if (!name) return "";
 
     let displayName = name;
     const tr = window.TnewsFreeTranslate;
-    if (tr?.needsTranslation?.(name, summaryLangId, sourceLangHint)) {
-      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+    if (tr?.needsTranslation?.(name, summaryLangId, fromLang)) {
       try {
-        displayName = await tr.translateText(name, summaryLangId, {
-          sourceLang: sourceLangHint,
-          onProgress: null,
-        });
+        const translated = await tr.translateOne(name, fromLang, tr.targetCode(summaryLangId));
+        if (tr.matchesTargetLang?.(translated, summaryLangId) || tr.targetCode(summaryLangId) === "ar") {
+          displayName = translated;
+        }
       } catch {
         displayName = name;
       }
     }
 
-    const label = H.authorLabel || "Author name";
-    return `**${label}**\n${displayName}\n\n`;
+    return `**${H.authorLabel || "Author name"}**\n${displayName}\n\n`;
   }
 
   async function buildSummary(loaded, summaryLangId, onStatus) {
@@ -99,7 +112,11 @@
     const title = cleanText(loaded.title);
     let body = cleanText(loaded.body);
     const fromPage = loaded.fromPage;
-    const sourceLangHint = loaded.sourceLang || loaded.locale || "";
+
+    const fromLang = window.TnewsFreeTranslate?.resolveSourceLang?.(
+      body || title,
+      loaded.sourceLang || loaded.locale || "",
+    );
 
     const sourceNote = (() => {
       if (loaded.fromPage && loaded.source === "article") return H.fromArticle;
@@ -108,13 +125,10 @@
     })();
 
     const tr = window.TnewsFreeTranslate;
-    const articleFrom = tr?.resolveSourceLang?.(body, sourceLangHint) || sourceLangHint || "ar";
-
-    if (tr?.needsTranslation?.(body, summaryLangId, sourceLangHint)) {
-      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+    if (tr?.needsTranslation?.(body, summaryLangId, fromLang)) {
       body = await tr.translateText(body, summaryLangId, {
-        sourceLang: articleFrom,
-        locale: sourceLangHint,
+        sourceLang: fromLang,
+        locale: loaded.locale,
         onProgress: (n, total) => {
           onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
         },
@@ -126,7 +140,7 @@
       loaded.author,
       H,
       summaryLangId,
-      sourceLangHint,
+      fromLang,
       onStatus,
     );
 
@@ -134,25 +148,13 @@
       let out = `${H.intro || "📰"}\n\n`;
       out += authorBlock;
       out += `**${H.empty || ""}**`;
-      return { text: out, fromPage, sourceNote };
+      return { text: out, fromPage, sourceNote, summaryLangId };
     }
 
-    const picked = pickTopSentences(sentences, title, Math.min(4, sentences.length));
-    let bullets = picked.slice(0, 4);
+    let bullets = pickTopSentences(sentences, title, Math.min(4, sentences.length));
 
-    if (tr?.stillNeedsTargetLang?.(bullets.join(" "), summaryLangId, sourceLangHint)) {
-      onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
-      const from = tr.resolveSourceLang(bullets.join(" "), sourceLangHint);
-      const to = tr.targetCode(summaryLangId);
-      const fixed = [];
-      for (let i = 0; i < bullets.length; i++) {
-        try {
-          fixed.push(await tr.translateOne(bullets[i], from, to));
-        } catch {
-          fixed.push(bullets[i]);
-        }
-      }
-      bullets = fixed;
+    if (tr && !tr.matchesTargetLang(bullets.join(" "), summaryLangId)) {
+      bullets = await translateLines(bullets, summaryLangId, fromLang, onStatus);
     }
 
     let out = `${H.intro || "📰"}\n\n`;
@@ -163,7 +165,7 @@
       : `• ${title}`;
     out += `\n\n**${H.source || ""}**\n${sourceNote}`;
 
-    return { text: out, fromPage, sourceNote };
+    return { text: out, fromPage, sourceNote, summaryLangId };
   }
 
   async function summarizeArticle(article, options) {
@@ -171,11 +173,12 @@
       throw new Error("وحدة تحميل المقال غير متوفرة");
     }
 
-    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
     const onStatus = options?.onStatus;
-    onStatus?.(STATUS[langId]?.load || STATUS.ar.load);
+    onStatus?.(STATUS.ar.load);
 
     const loaded = await window.TnewsArticleContent.loadFromArticlePage(article, onStatus);
+    const langId = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+    onStatus?.(STATUS[langId]?.load || STATUS.ar.load);
     return buildSummary(loaded, langId, onStatus);
   }
 

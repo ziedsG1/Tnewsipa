@@ -49,25 +49,38 @@
     return (sample.match(/[\u0600-\u06FF]/g) || []).length / sample.length;
   }
 
+  function frenchRatio(text) {
+    const sample = String(text || "").slice(0, 2500);
+    const letters = sample.replace(/\s/g, "").length || 1;
+    const accents = (sample.match(/[àâäéèêëïîôùûüçœæ«»]/gi) || []).length;
+    const frWords = (
+      sample.match(
+        /\b(le|la|les|des|du|de|un|une|dans|pour|avec|est|sont|qui|que|pas|plus|sur|au|aux)\b/gi,
+      ) || []
+    ).length;
+    return (accents * 2 + frWords * 8) / letters;
+  }
+
   function cacheKey(text, from, to) {
     return `${CACHE_PREFIX}${from}:${to}:${text.slice(0, 100)}`;
   }
 
   function detectLang(text) {
-    const sample = decodeReadableText(text).slice(0, 2000);
-    if (arabicRatio(sample) > 0.15) return "ar";
-    if (/[éèêëàâùûçœæ«»]/i.test(sample) || /\b(le|la|les|des|une|dans|pour)\b/i.test(sample)) {
-      return "fr";
-    }
+    const sample = decodeReadableText(text).slice(0, 2500);
+    if (arabicRatio(sample) > 0.12) return "ar";
+    if (frenchRatio(sample) > 0.06) return "fr";
     return "en";
   }
 
   function resolveSourceLang(text, hint) {
-    if (arabicRatio(text) > 0.15) return "ar";
     const h = String(hint || "").toLowerCase();
-    if (h === "ar") return "ar";
-    if (h === "fr") return "fr";
-    if (h === "en") return "en";
+    if (h === "ar" || h === "fr" || h === "en") {
+      const detected = detectLang(text);
+      if (h === detected) return h;
+      if (h === "fr" && frenchRatio(text) > 0.04) return "fr";
+      if (h === "ar" && arabicRatio(text) > 0.1) return "ar";
+      if (h === "en" && arabicRatio(text) < 0.08 && frenchRatio(text) < 0.04) return "en";
+    }
     return detectLang(text);
   }
 
@@ -76,19 +89,21 @@
   }
 
   function needsTranslation(body, summaryLangId, sourceLangHint) {
-    const from = resolveSourceLang(body, sourceLangHint);
     const to = targetCode(summaryLangId);
-    if (summaryLangId === "tn") return from !== "ar";
+    if (summaryLangId === "tn") {
+      return resolveSourceLang(body, sourceLangHint) !== "ar";
+    }
+    const from = resolveSourceLang(body, sourceLangHint);
     return from !== to;
   }
 
-  function stillNeedsTargetLang(text, summaryLangId, sourceLangHint) {
-    const from = resolveSourceLang(text, sourceLangHint);
+  function matchesTargetLang(text, summaryLangId) {
     const to = targetCode(summaryLangId);
-    if (from === to) return false;
-    if (to === "ar") return arabicRatio(text) < 0.18;
-    if (from === "ar") return arabicRatio(text) > 0.22;
-    return false;
+    if (summaryLangId === "tn") return arabicRatio(text) > 0.1;
+    if (to === "ar") return arabicRatio(text) > 0.18;
+    if (to === "fr") return frenchRatio(text) > 0.05 && arabicRatio(text) < 0.1;
+    if (to === "en") return frenchRatio(text) < 0.04 && arabicRatio(text) < 0.08;
+    return true;
   }
 
   function translationLooksValid(original, translated, from, to) {
@@ -96,8 +111,14 @@
     const plain = decodeReadableText(original).trim();
     if (!out || out === plain) return false;
     if (looksPercentEncoded(out)) return false;
-    if (to === "ar" && from !== "ar" && arabicRatio(out) < 0.12) return false;
-    if (from === "ar" && to !== "ar" && arabicRatio(out) > 0.22) return false;
+
+    if (to === "ar" && arabicRatio(out) < 0.12) return false;
+    if (from === "ar" && to !== "ar" && arabicRatio(out) > 0.25) return false;
+    if (from === "fr" && to === "en" && (arabicRatio(out) > 0.15 || frenchRatio(out) > 0.07)) {
+      return false;
+    }
+    if (from === "fr" && to === "ar" && arabicRatio(out) < 0.12) return false;
+
     return true;
   }
 
@@ -278,17 +299,9 @@
   }
 
   function providersForPair(from, to) {
-    if (from === "ar" && to !== "ar") {
-      return [
-        (t, f, tl) => translateViaLibre(t, f, tl),
-        (t, f, tl) => translateViaGtx(t, f, tl),
-        (t, f, tl) => translateViaMyMemory(t, f, tl),
-        (t, f, tl) => translateViaLingva(t, f, tl),
-      ];
-    }
     return [
-      (t, f, tl) => translateViaLibre(t, f, tl),
       (t, f, tl) => translateViaGtx(t, f, tl),
+      (t, f, tl) => translateViaLibre(t, f, tl),
       (t, f, tl) => translateViaMyMemory(t, f, tl),
       (t, f, tl) => translateViaLingva(t, f, tl),
     ];
@@ -308,10 +321,8 @@
       /* ignore */
     }
 
-    const runners = providersForPair(from, to);
     let lastErr = null;
-
-    for (const run of runners) {
+    for (const run of providersForPair(from, to)) {
       try {
         const translated = await run(clean, from, to);
         try {
@@ -327,6 +338,21 @@
     throw lastErr || new Error("translate failed");
   }
 
+  async function translateLines(lines, from, to, onProgress) {
+    const out = [];
+    for (let i = 0; i < lines.length; i++) {
+      onProgress?.(i + 1, lines.length);
+      const line = decodeReadableText(lines[i]);
+      if (!line) continue;
+      try {
+        out.push(await translateOne(line, from, to));
+      } catch {
+        out.push(line);
+      }
+    }
+    return out;
+  }
+
   async function translateText(text, summaryLangId, options = {}) {
     const plain = decodeReadableText(text);
     if (!plain) return plain;
@@ -337,35 +363,14 @@
     const from = resolveSourceLang(plain, hint);
     const to = targetCode(summaryLangId);
     const chunks = chunkForTranslate(plain, MAX_CHARS);
-    const parts = [];
 
-    for (let i = 0; i < chunks.length; i++) {
-      options.onProgress?.(i + 1, chunks.length);
-      try {
-        parts.push(await translateOne(chunks[i], from, to));
-      } catch {
-        parts.push(chunks[i]);
-      }
-    }
-
+    let parts = await translateLines(chunks, from, to, options.onProgress);
     let out = parts.join(" ").replace(/\s+/g, " ").trim();
 
-    if (stillNeedsTargetLang(out, summaryLangId, hint)) {
-      const retryParts = [];
-      for (let i = 0; i < chunks.length; i++) {
-        options.onProgress?.(i + 1, chunks.length);
-        try {
-          retryParts.push(await translateViaLibre(chunks[i], from, to));
-        } catch {
-          try {
-            retryParts.push(await translateViaGtx(chunks[i], from, to));
-          } catch {
-            retryParts.push(chunks[i]);
-          }
-        }
-      }
-      const retryOut = retryParts.join(" ").replace(/\s+/g, " ").trim();
-      if (!stillNeedsTargetLang(retryOut, summaryLangId, hint)) out = retryOut;
+    if (!matchesTargetLang(out, summaryLangId)) {
+      parts = await translateLines(chunks, from, to, options.onProgress);
+      const retry = parts.join(" ").replace(/\s+/g, " ").trim();
+      if (matchesTargetLang(retry, summaryLangId)) out = retry;
     }
 
     return out;
@@ -375,9 +380,10 @@
     detectLang,
     resolveSourceLang,
     needsTranslation,
-    stillNeedsTargetLang,
+    matchesTargetLang,
     translateText,
     translateOne,
+    translateLines,
     decodeReadableText,
     targetCode,
   };
