@@ -414,11 +414,21 @@
     const handler = siteHandlerForUrl(link);
     const minFull = handler?.minFullChars || MIN_FULL_CHARS;
 
+    function detectBodyLang(text) {
+      const sample = String(text || "").slice(0, 2500);
+      if (!sample.length) return "";
+      const ar = (sample.match(/[\u0600-\u06FF]/g) || []).length;
+      const letters = sample.replace(/\s/g, "").length || 1;
+      if (ar / letters > 0.15) return "ar";
+      if (/[éèêëàâùûçœæ«»]/i.test(sample) || /\b(le|la|les|des|une|dans)\b/i.test(sample)) {
+        return "fr";
+      }
+      return "en";
+    }
+
     function result(extra) {
       const bodyForLang = extra.body || "";
-      const sourceLang =
-        feedLocale ||
-        (bodyForLang.length > 80 && /[\u0600-\u06FF]/.test(bodyForLang.slice(0, 2000)) ? "ar" : "");
+      const sourceLang = feedLocale || detectBodyLang(bodyForLang);
       return {
         locale: feedLocale,
         sourceLang,

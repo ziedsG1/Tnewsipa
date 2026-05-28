@@ -11,8 +11,12 @@
     fr: { load: "Chargement de l'article…", translate: "Traduction en français…" },
   };
 
-  function headers() {
-    return window.TnewsTunisianStyle?.getLocalHeaders?.() || window.TnewsTunisianStyle?.LOCAL_HEADERS || {};
+  function headers(langId) {
+    return (
+      window.TnewsTunisianStyle?.getLocalHeaders?.(langId) ||
+      window.TnewsTunisianStyle?.LOCAL_HEADERS ||
+      {}
+    );
   }
 
   function cleanText(text) {
@@ -91,11 +95,11 @@
   }
 
   async function buildSummary(loaded, summaryLangId, onStatus) {
-    const H = headers();
+    const H = headers(summaryLangId);
     const title = cleanText(loaded.title);
     let body = cleanText(loaded.body);
     const fromPage = loaded.fromPage;
-    const sourceLangHint = loaded.locale || loaded.sourceLang || "";
+    const sourceLangHint = loaded.sourceLang || loaded.locale || "";
 
     const sourceNote = (() => {
       if (loaded.fromPage && loaded.source === "article") return H.fromArticle;
@@ -103,21 +107,14 @@
       return H.fromRss;
     })();
 
-    const translateOpts = {
-      sourceLang: sourceLangHint || "ar",
-      locale: sourceLangHint || "ar",
-    };
-
     const tr = window.TnewsFreeTranslate;
-    const mustTranslate =
-      tr?.needsTranslation?.(body, summaryLangId, "ar") ||
-      tr?.needsTranslation?.(body, summaryLangId, sourceLangHint);
+    const articleFrom = tr?.resolveSourceLang?.(body, sourceLangHint) || sourceLangHint || "ar";
 
-    if (mustTranslate) {
+    if (tr?.needsTranslation?.(body, summaryLangId, sourceLangHint)) {
       onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
       body = await tr.translateText(body, summaryLangId, {
-        ...translateOpts,
-        sourceLang: "ar",
+        sourceLang: articleFrom,
+        locale: sourceLangHint,
         onProgress: (n, total) => {
           onStatus?.(`${STATUS[summaryLangId]?.translate || ""} (${n}/${total})`);
         },
@@ -143,14 +140,14 @@
     const picked = pickTopSentences(sentences, title, Math.min(4, sentences.length));
     let bullets = picked.slice(0, 4);
 
-    if (tr?.stillArabic?.(bullets.join(" "), summaryLangId)) {
+    if (tr?.stillNeedsTargetLang?.(bullets.join(" "), summaryLangId, sourceLangHint)) {
       onStatus?.(STATUS[summaryLangId]?.translate || STATUS.ar.translate);
+      const from = tr.resolveSourceLang(bullets.join(" "), sourceLangHint);
+      const to = tr.targetCode(summaryLangId);
       const fixed = [];
       for (let i = 0; i < bullets.length; i++) {
         try {
-          fixed.push(
-            await tr.translateOne(bullets[i], "ar", tr.targetCode(summaryLangId)),
-          );
+          fixed.push(await tr.translateOne(bullets[i], from, to));
         } catch {
           fixed.push(bullets[i]);
         }

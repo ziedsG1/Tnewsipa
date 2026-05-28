@@ -1,5 +1,5 @@
 (function () {
-  const CACHE_PREFIX = "tnews-tr5:";
+  const CACHE_PREFIX = "tnews-tr6:";
   const MAX_CHARS = 450;
 
   const TARGET = { tn: "ar", ar: "ar", en: "en", fr: "fr" };
@@ -76,17 +76,19 @@
   }
 
   function needsTranslation(body, summaryLangId, sourceLangHint) {
-    const to = targetCode(summaryLangId);
-    if (to === "ar" && summaryLangId !== "tn") return false;
     const from = resolveSourceLang(body, sourceLangHint);
+    const to = targetCode(summaryLangId);
     if (summaryLangId === "tn") return from !== "ar";
     return from !== to;
   }
 
-  function stillArabic(text, summaryLangId) {
+  function stillNeedsTargetLang(text, summaryLangId, sourceLangHint) {
+    const from = resolveSourceLang(text, sourceLangHint);
     const to = targetCode(summaryLangId);
-    if (to === "ar") return false;
-    return arabicRatio(text) > 0.2;
+    if (from === to) return false;
+    if (to === "ar") return arabicRatio(text) < 0.18;
+    if (from === "ar") return arabicRatio(text) > 0.22;
+    return false;
   }
 
   function translationLooksValid(original, translated, from, to) {
@@ -94,6 +96,7 @@
     const plain = decodeReadableText(original).trim();
     if (!out || out === plain) return false;
     if (looksPercentEncoded(out)) return false;
+    if (to === "ar" && from !== "ar" && arabicRatio(out) < 0.12) return false;
     if (from === "ar" && to !== "ar" && arabicRatio(out) > 0.22) return false;
     return true;
   }
@@ -347,7 +350,7 @@
 
     let out = parts.join(" ").replace(/\s+/g, " ").trim();
 
-    if (stillArabic(out, summaryLangId)) {
+    if (stillNeedsTargetLang(out, summaryLangId, hint)) {
       const retryParts = [];
       for (let i = 0; i < chunks.length; i++) {
         options.onProgress?.(i + 1, chunks.length);
@@ -362,7 +365,7 @@
         }
       }
       const retryOut = retryParts.join(" ").replace(/\s+/g, " ").trim();
-      if (!stillArabic(retryOut, summaryLangId)) out = retryOut;
+      if (!stillNeedsTargetLang(retryOut, summaryLangId, hint)) out = retryOut;
     }
 
     return out;
@@ -372,7 +375,7 @@
     detectLang,
     resolveSourceLang,
     needsTranslation,
-    stillArabic,
+    stillNeedsTargetLang,
     translateText,
     translateOne,
     decodeReadableText,

@@ -64,8 +64,8 @@
     return { SYSTEM_PROMPT: BASE_SYSTEM, USER_SECTIONS: "" };
   }
 
-  function getLocalHeaders() {
-    const id = window.TnewsSummaryLanguage?.getLangId?.() || "tn";
+  function getLocalHeaders(langId) {
+    const id = langId || window.TnewsSummaryLanguage?.getLangId?.() || "tn";
     if (id === "ar") return LOCAL_HEADERS_AR;
     if (id === "en") return LOCAL_HEADERS_EN;
     if (id === "fr") return LOCAL_HEADERS_FR;
